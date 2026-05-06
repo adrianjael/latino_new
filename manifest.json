@@ -1,13 +1,13 @@
 {
     "name": "Latino - AdrianJael",
-    "version": "1.4.2",
+    "version": "1.4.5",
     "description": "Contenido exclusivo en Español Latino para NuvioMobile",
     "scrapers": [
         {
             "id": "embed69",
             "name": "Embed69",
-            "description": "Latino - Warp Speed Stable 🚀🏁⚡",
-            "version": "1.8.0",
+            "description": "Latino - Versión Súper Estable 🛡️🍿🎬",
+            "version": "1.8.5",
             "author": "AdrianJael",
             "supportedTypes": [
                 "movie",
