@@ -222,51 +222,48 @@ async function getStreams(tmdbId, mediaType, season, episode) {
 
         // Interceptar fetch temporalmente para servir el caché pre-descargado
         const _originalFetch = globalThis.fetch;
-        globalThis.fetch = async (url, opts) => {
-          const key = typeof url === 'string' ? url : url.toString();
-          if (_htmlCache[key]) {
-            const cachedHtml = _htmlCache[key];
-            // Crear respuesta sintética compatible con la API fetch
-            return {
-              ok: true, status: 200,
-              text: async () => cachedHtml,
-              json: async () => JSON.parse(cachedHtml),
-              headers: new Map([['content-type', 'text/html']])
-            };
-          }
-          // Si no está en caché, usa el fetch real
-          return _originalFetch(url, opts);
-        };
-
-        // Procesar cada embed con su HTML ya descargado (en paralelo)
-        // Usamos map con una promesa interna pero NO bloqueamos el retorno de los rápidos
-        const parallelPromises = embedsToResolve.map(async embed => {
-          const sName = embed.server;
-          const fetched = _htmlCache[embed.url]; // Usar el caché directamente para máxima velocidad
-          if (!fetched) return null;
-          try {
-            let res = null;
-            if (sName === "filemoon") res = await resolveFilemoon(embed.url);
-            else if (sName === "voe") res = await resolveVoe(embed.url);
-            else if (sName === "streamwish") res = await resolveStreamwish(embed.url);
-            else if (sName === "vidhide") res = await resolveVidhide(embed.url);
-            if (res) {
-              const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
-              if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
-              return item;
+        try {
+          globalThis.fetch = async (url, opts) => {
+            const key = typeof url === 'string' ? url : url.toString();
+            if (_htmlCache[key]) {
+              const cachedHtml = _htmlCache[key];
+              return {
+                ok: true, status: 200,
+                text: async () => cachedHtml,
+                json: async () => JSON.parse(cachedHtml),
+                headers: new Map([['content-type', 'text/html']])
+              };
             }
-          } catch (e) { }
-          return null;
-        });
+            return _originalFetch(url, opts);
+          };
 
-        // TRUCO NITRO: Si en 2.5 segundos tenemos resultados, retornamos la lista parcial.
-        // Filemoon seguirá enviando sus resultados por __yield_result después.
-        const fastResults = await Promise.race([
-          Promise.all(parallelPromises),
-          new Promise(resolve => setTimeout(() => resolve(null), 2500))
-        ]);
+          const parallelPromises = embedsToResolve.map(async embed => {
+            const sName = embed.server;
+            try {
+              let res = null;
+              if (sName === "filemoon") res = await resolveFilemoon(embed.url);
+              else if (sName === "voe") res = await resolveVoe(embed.url);
+              else if (sName === "streamwish") res = await resolveStreamwish(embed.url);
+              else if (sName === "vidhide") res = await resolveVidhide(embed.url);
+              if (res) {
+                const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
+                if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
+                return item;
+              }
+            } catch (e) { }
+            return null;
+          });
 
-        return fastResults ? fastResults.filter(Boolean) : [];
+          // TRUCO NITRO: Si en 2.5 segundos tenemos resultados, retornamos la lista parcial.
+          const fastResults = await Promise.race([
+            Promise.all(parallelPromises),
+            new Promise(resolve => setTimeout(() => resolve(null), 2500))
+          ]);
+
+          return fastResults ? fastResults.filter(Boolean) : [];
+        } finally {
+          globalThis.fetch = _originalFetch;
+        }
       } catch (e) {
         console.log(`[Embed69] Error en batch nativo: ${e.message}.`);
       }
