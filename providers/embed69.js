@@ -515,7 +515,10 @@ function getStreams(tmdbId, mediaType, season, episode) {
     try {
       console.log(`[Latino TV] Buscando en Embed69: ${tmdbId}`);
       return yield extractor.getLinks(tmdbId, mediaType, season, episode);
-    } catch (error) { return []; }
-  }
+    } catch (error) {
+      return [];
+    }
+  });
 }
 module.exports = { getStreams };
+
