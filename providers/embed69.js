@@ -238,34 +238,29 @@ async function getStreams(tmdbId, mediaType, season, episode) {
           return _originalFetch(url, opts);
         };
 
-        try {
-          // Ejecutar todos los resolvers en paralelo con el caché activo
-          const parallelResults = await Promise.all(embedsToResolve.map(async embed => {
-            const sName = embed.server;
-            try {
-              let res = null;
-              if (sName === "filemoon") res = await resolveFilemoon(embed.url);
-              else if (sName === "voe") res = await resolveVoe(embed.url);
-              else if (sName === "streamwish") res = await resolveStreamwish(embed.url);
-              else if (sName === "vidhide") res = await resolveVidhide(embed.url);
-              if (res) {
-                const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
-                if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
-                return item;
-              }
-            } catch (e) {
-              console.log(`[Embed69] Error resolviendo ${sName}: ${e.message}`);
+        // Procesar cada embed con su HTML ya descargado (en paralelo)
+        // Usamos map sin el await del Promise.all final para que fluyan los resultados
+        embedsToResolve.map(async embed => {
+          const sName = embed.server;
+          const fetched = htmlMap[embed.url];
+          if (!fetched || !fetched.ok || !fetched.html) return null;
+          try {
+            let res = null;
+            if (sName === "filemoon") res = await resolveFilemoon(embed.url, fetched.html);
+            else if (sName === "voe") res = await resolveVoe(embed.url, fetched.html);
+            else if (sName === "streamwish") res = await resolveStreamwish(embed.url, fetched.html);
+            else if (sName === "vidhide") res = await resolveVidhide(embed.url, fetched.html);
+            if (res) {
+              const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
+              if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
             }
-            return null;
-          }));
+          } catch (e) {
+            console.log(`[Embed69] Error resolviendo ${sName}: ${e.message}`);
+          }
+        });
 
-          const filtered = parallelResults.filter(Boolean);
-          console.log(`[Embed69] Resolución nativa completada: ${filtered.length} resultados.`);
-          return filtered;
-        } finally {
-          // Siempre restaurar el fetch original
-          globalThis.fetch = _originalFetch;
-        }
+        console.log(`[Embed69] Resolución nativa iniciada en segundo plano.`);
+        return []; // Retornamos rápido, los resultados llegarán vía __yield_result
       } catch (e) {
         console.log(`[Embed69] Error en batch nativo: ${e.message}. Cayendo a modo estándar.`);
       }
