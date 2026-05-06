@@ -1,6 +1,6 @@
 /**
- * embed69 - Plugin Nuvio (Versión Super Rápida - Base Antigua)
- * Basado en el ejemplo de Nuvio Antiguo con Filemoon Nativo Moderno.
+ * embed69 - Plugin Nuvio (CLON EXACTO ANTIGUO + FILEMOON NATIVO)
+ * Versión 1.1.3
  */
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -35,10 +35,10 @@ var __async = (__this, __arguments, generator) => {
   });
 };
 
-// --- HTTP & UTILS ---
+// --- HTTP ---
 var require_http = __commonJS({
   "src/embed69/http.js"(exports2, module2) {
-    module2.exports = {
+    var http = {
       get(url) {
         return __async(this, null, function* () {
           const res = yield fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" } });
@@ -46,22 +46,42 @@ var require_http = __commonJS({
         });
       }
     };
+    module2.exports = http;
   }
 });
 
+// --- UNPACKER ---
 var require_unpacker = __commonJS({
   "src/shared/utils/unpacker.js"(exports2, module2) {
+    function unpack(code) {
+      try {
+        const match = code.match(/eval\(function\(p,a,c,k,e,[rd]\)\{.*?\}\s*\('([\s\S]*?)',\s*(\d+),\s*(\d+),\s*'([\s\S]*?)'\.split\('\|'\)/);
+        if (!match) return code;
+        let [, p, a, c, k] = match;
+        a = parseInt(a); c = parseInt(c);
+        let kArr = k.split("|");
+        return p.replace(/\b\w+\b/g, (e) => kArr[parseInt(e, a)] || e);
+      } catch (e) { return code; }
+    }
+    module2.exports = { unpack };
+  }
+});
+
+// --- TMDB ---
+var require_tmdb = __commonJS({
+  "src/shared/utils/tmdb.js"(exports2, module2) {
+    const CACHE = {};
     module2.exports = {
-      unpack(code) {
+      getImdbId: (tmdbId, mediaType) => __async(this, null, function* () {
+        const key = `${mediaType}_${tmdbId}`;
+        if (CACHE[key]) return CACHE[key];
         try {
-          const match = code.match(/eval\(function\(p,a,c,k,e,[rd]\)\{.*?\}\s*\('([\s\S]*?)',\s*(\d+),\s*(\d+),\s*'([\s\S]*?)'\.split\('\|'\)/);
-          if (!match) return code;
-          let [, p, a, c, k] = match;
-          a = parseInt(a); c = parseInt(c);
-          let kArr = k.split("|");
-          return p.replace(/\b\w+\b/g, (e) => kArr[parseInt(e, a)] || e);
-        } catch (e) { return code; }
-      }
+          const type = String(mediaType).includes("movie") ? "movie" : "tv";
+          const res = yield (yield fetch(`https://api.themoviedb.org/3/${type}/${tmdbId}/external_ids?api_key=439c478a771f35c05022f9feabcca01c`)).json();
+          if (res.imdb_id) CACHE[key] = res.imdb_id;
+          return res.imdb_id || null;
+        } catch (e) { return null; }
+      })
     };
   }
 });
@@ -74,24 +94,23 @@ var require_resolvers = __commonJS({
     
     const registry = {
       vidhide: function*(url) {
-          const res = yield fetch(url, { headers: { "User-Agent": UA, "Referer": "https://embed69.org/" } });
-          let html = yield res.text();
-          if (html.includes("window.location.href")) {
-              const m = html.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/i);
+          const h = yield (yield fetch(url, { headers: { "User-Agent": UA, "Referer": "https://embed69.org/" } })).text();
+          let c = h;
+          if (h.includes("window.location.href")) {
+              const m = h.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/i);
               if (m) return yield* registry.vidhide(m[1]);
           }
-          const evals = html.match(/eval\(function\(p,a,c,k,e,[rd]\)[\s\S]*?\.split\('\|'\)[^\)]*\)\)/g);
-          if (evals) evals.forEach(m => html += "\n" + unpack(m));
-          const file = html.match(/(?:file|source|src|hls)\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']/i);
-          return file ? { url: file[1], quality: "1080p" } : null;
+          const evals = h.match(/eval\(function\(p,a,c,k,e,[rd]\)[\s\S]*?\.split\('\|'\)[^\)]*\)\)/g);
+          if (evals) evals.forEach(m => c += "\n" + unpack(m));
+          const file = c.match(/(?:file|source|src|hls)\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']/i);
+          return file ? { url: file[1], quality: "1080p", headers: { "User-Agent": UA, "Referer": new URL(url).origin + "/" } } : null;
       },
       streamwish: function*(url) {
-          const mirrors = ["vibuxer.com", "awish.pro"];
           const h = yield (yield fetch(url, { headers: { "User-Agent": UA, "Referer": "https://embed69.org/" } })).text();
           const evalMatch = h.match(/eval\(function\(p,a,c,k,e,[rd]\)[\s\S]*?\.split\('\|'\)[^\)]*\)\)/);
-          let content = h + (evalMatch ? "\n" + unpack(evalMatch[0]) : "");
-          const file = content.match(/(?:file|source|src|hls)\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']/i);
-          return file ? { url: file[1], quality: "Auto" } : null;
+          let c = h + (evalMatch ? "\n" + unpack(evalMatch[0]) : "");
+          const file = c.match(/(?:file|source|src|hls)\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']/i);
+          return file ? { url: file[1], quality: "Auto", headers: { "User-Agent": UA } } : null;
       },
       voe: function*(url) {
           const h = yield (yield fetch(url, { headers: { "User-Agent": UA, "Referer": url } })).text();
@@ -101,13 +120,12 @@ var require_resolvers = __commonJS({
               ["@$", "^^", "~@", "%?", "*~", "!!", "#&"].forEach(n => d = d.split(n).join(""));
               const s1 = atob(d);
               let s2 = ""; for(let i=0; i<s1.length; i++) s2 += String.fromCharCode(s1.charCodeAt(i)-3);
-              const res = JSON.parse(atob(s2.split("").reverse().join("")));
-              if (res.source) return { url: res.source, quality: "1080p" };
+              const data = JSON.parse(atob(s2.split("").reverse().join("")));
+              if (data.source) return { url: data.source, quality: "1080p", headers: { "User-Agent": UA, "Referer": url } };
           }
           return null;
       },
       filemoon: function*(url) {
-          // --- INTEGRACIÓN NATIVA NUVIO-MOBILE ---
           try {
               const videoId = url.split("/").pop();
               const domain = new URL(url).origin;
@@ -123,7 +141,7 @@ var require_resolvers = __commonJS({
                   body: JSON.stringify({
                       viewer_id: vId, device_id: vId, challenge_id: challenge.challenge_id, nonce: challenge.nonce,
                       signature: attestJson.signature, public_key: { crv: "P-256", ext: true, key_ops: ["verify"], kty: "EC", x: attestJson.x, y: attestJson.y },
-                      client: { user_agent: UA, architecture: "x86", bitness: "64", platform: "Windows", platform_version: "10.0.0", pixel_ratio: 1.0, screen_width: 1920, screen_height: 1080, languages: ["en-US"] },
+                      client: { user_agent: UA, platform: "Windows", platform_version: "10.0.0" },
                       storage: { cookie: vId, local_storage: vId }, attributes: { entropy: "high" }
                   })
               })).json();
@@ -149,31 +167,25 @@ var require_resolvers = __commonJS({
   }
 });
 
-var require_tmdb = __commonJS({
-  "src/shared/utils/tmdb.js"(exports2, module2) {
-    const CACHE = {};
-    module2.exports = {
-      getImdbId: (id, type) => __async(this, null, function* () {
-        const key = `${type}_${id}`;
-        if (CACHE[key]) return CACHE[key];
-        try {
-          const res = yield (yield fetch(`https://api.themoviedb.org/3/${type === "tv" ? "tv" : "movie"}/${id}/external_ids?api_key=439c478a771f35c05022f9feabcca01c`)).json();
-          if (res.imdb_id) CACHE[key] = res.imdb_id;
-          return res.imdb_id || null;
-        } catch (e) { return null; }
-      })
-    };
-  }
-});
-
-// --- MAIN EXTRACTOR ---
+// --- MAIN ---
 var http = require_http();
 var resolvers = require_resolvers();
 var tmdb = require_tmdb();
 
-function getLinks(id, type, s, e) {
-  return __async(this, null, function* () {
+function decodeJwt(token) {
     try {
+        const base64Url = token.split(".")[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const pad = base64.length % 4;
+        const padded = pad ? base64 + "====".substring(pad) : base64;
+        return JSON.parse(atob(padded));
+    } catch(e) { return null; }
+}
+
+module.exports = {
+  getStreams: (id, type, s, e) => __async(null, null, function* () {
+    try {
+      console.log(`[Latino TV] Buscando: ${id}`);
       let imdbId = id.startsWith("tt") ? id : yield tmdb.getImdbId(id, type);
       if (!imdbId) return [];
       const urlId = (type === "tv" && s) ? `${imdbId}-${s}x${String(e).padStart(2, "0")}` : imdbId;
@@ -187,7 +199,8 @@ function getLinks(id, type, s, e) {
       
       const results = yield Promise.allSettled(lat.sortedEmbeds.filter(e => e.link && e.servername !== "download").map(e => __async(this, null, function* () {
           try {
-              const payload = JSON.parse(atob(e.link.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+              const payload = decodeJwt(e.link);
+              if (!payload) return null;
               const res = yield resolvers.resolve(e.servername, payload.link);
               if (!res) return null;
               return { name: `Embed69 - ${e.servername}`, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
@@ -195,12 +208,5 @@ function getLinks(id, type, s, e) {
       })));
       return results.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
     } catch (e) { return []; }
-  });
-}
-
-module.exports = {
-  getStreams: (id, type, s, e) => __async(null, null, function* () {
-    console.log(`[Latino TV] Buscando: ${id}`);
-    return yield getLinks(id, type, s, e);
   })
 };
