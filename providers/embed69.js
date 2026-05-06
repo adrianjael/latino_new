@@ -244,39 +244,24 @@ var require_streamwish = __commonJS({
             }
           }
           if (!success) {
-            console.log(`[Streamwish] Probando ${domains.length} espejos en paralelo (Legacy Race)...`);
-            const raceResults = yield new Promise((resolve) => {
-                let finished = false;
-                let failCount = 0;
-                domains.forEach((domain) => {
-                    const fetchUrl = url.replace(/[^/]+\.(?:com|to|pro|net|org)/, domain);
-                    fetch(fetchUrl, { headers: { "User-Agent": USER_AGENT, "Referer": "https://embed69.org/" } })
-                        .then(res => res.ok ? res.text() : Promise.reject())
-                        .then(text => {
-                            if (!finished && (text.includes(".m3u8") || text.includes("eval(function"))) {
-                                finished = true;
-                                resolve({ html: text, origin: `https://${domain}` });
-                            } else {
-                                throw new Error("Invalid content");
-                            }
-                        })
-                        .catch(() => {
-                            failCount++;
-                            if (failCount >= domains.length && !finished) {
-                                resolve(null);
-                            }
-                        });
-                });
-                // Timeout global de seguridad de 5s para la carrera
-                setTimeout(() => { if (!finished) resolve(null); }, 5000);
+            console.log(`[Streamwish] Probando los 3 mejores espejos en paralelo...`);
+            const topDomains = domains.slice(0, 3);
+            const fetchPromises = topDomains.map((domain) => {
+                const fetchUrl = url.replace(/[^/]+\.(?:com|to|pro|net|org)/, domain);
+                return fetch(fetchUrl, { headers: { "User-Agent": USER_AGENT, "Referer": "https://embed69.org/" } })
+                    .then(res => res.ok ? res.text().then(text => ({ text, domain })) : null)
+                    .catch(() => null);
             });
 
-            if (raceResults) {
-                html = raceResults.html;
-                finalOrigin = raceResults.origin;
+            const results = yield Promise.all(fetchPromises);
+            const winner = results.find(r => r && (r.text.includes(".m3u8") || r.text.includes("eval(function")));
+            
+            if (winner) {
+                html = winner.text;
+                finalOrigin = `https://${winner.domain}`;
                 success = true;
             } else {
-                console.error(`[Streamwish] Todos los espejos fallaron o timeout.`);
+                console.error(`[Streamwish] Los espejos principales fallaron.`);
             }
           }
           if (!success) {
