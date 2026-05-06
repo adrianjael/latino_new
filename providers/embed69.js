@@ -204,18 +204,74 @@ async function getStreams(tmdbId, mediaType, season, episode) {
       return { server: embed.servername.toLowerCase(), url: payload.link };
     });
 
-    console.log(`[Embed69] Resolviendo ${embedsToResolve.length} servidores de forma nativa... 🚀`);
+    console.log(`[Embed69] Resolviendo ${embedsToResolve.length} servidores en paralelo... 🚀`);
 
-    if (typeof __native_batch_resolve === "function") {
+    // Si el motor nativo está disponible, pre-descargamos todos los HTMLs a la vez
+    // y los guardamos en un caché que los resolvers usarán automáticamente
+    if (typeof __native_batch_fetch === "function") {
       try {
-        __native_batch_resolve(JSON.stringify(embedsToResolve));
-        console.log("[Embed69] Resolución nativa multihilo completada.");
-        return []; 
+        const requests = embedsToResolve.map(e => ({ url: e.url }));
+        const rawJson = __native_batch_fetch(JSON.stringify(requests));
+        const htmlResults = JSON.parse(rawJson); // [{url, html, ok}, ...]
+
+        // Guardar en caché global para que el fetch interceptado lo use
+        const _htmlCache = {};
+        for (const r of htmlResults) {
+          if (r.ok && r.html) _htmlCache[r.url] = r.html;
+        }
+
+        // Interceptar fetch temporalmente para servir el caché pre-descargado
+        const _originalFetch = globalThis.fetch;
+        globalThis.fetch = async (url, opts) => {
+          const key = typeof url === 'string' ? url : url.toString();
+          if (_htmlCache[key]) {
+            const cachedHtml = _htmlCache[key];
+            // Crear respuesta sintética compatible con la API fetch
+            return {
+              ok: true, status: 200,
+              text: async () => cachedHtml,
+              json: async () => JSON.parse(cachedHtml),
+              headers: new Map([['content-type', 'text/html']])
+            };
+          }
+          // Si no está en caché, usa el fetch real
+          return _originalFetch(url, opts);
+        };
+
+        try {
+          // Ejecutar todos los resolvers en paralelo con el caché activo
+          const parallelResults = await Promise.all(embedsToResolve.map(async embed => {
+            const sName = embed.server;
+            try {
+              let res = null;
+              if (sName === "filemoon") res = await resolveFilemoon(embed.url);
+              else if (sName === "voe") res = await resolveVoe(embed.url);
+              else if (sName === "streamwish") res = await resolveStreamwish(embed.url);
+              else if (sName === "vidhide") res = await resolveVidhide(embed.url);
+              if (res) {
+                const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
+                if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
+                return item;
+              }
+            } catch (e) {
+              console.log(`[Embed69] Error resolviendo ${sName}: ${e.message}`);
+            }
+            return null;
+          }));
+
+          const filtered = parallelResults.filter(Boolean);
+          console.log(`[Embed69] Resolución nativa completada: ${filtered.length} resultados.`);
+          return filtered;
+        } finally {
+          // Siempre restaurar el fetch original
+          globalThis.fetch = _originalFetch;
+        }
       } catch (e) {
-        console.log(`[Embed69] Error en Resolución Nativa: ${e.message}. Cayendo a modo estándar.`);
+        console.log(`[Embed69] Error en batch nativo: ${e.message}. Cayendo a modo estándar.`);
       }
     }
 
+    // Fallback secuencial si no hay motor nativo
     const results = [];
     for (const embed of embedsToResolve) {
       try {
@@ -227,7 +283,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         else if (sName === "vidhide") res = await resolveVidhide(embed.url);
 
         if (res) {
-          const item = { name: `Embed69 - ${sName}`, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
+          const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
           if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
           results.push(item);
         }
