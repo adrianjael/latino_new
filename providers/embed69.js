@@ -239,8 +239,8 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         };
 
         // Procesar cada embed con su HTML ya descargado (en paralelo)
-        // Usamos map sin el await del Promise.all final para que fluyan los resultados
-        embedsToResolve.map(async embed => {
+        // Usamos await Promise.all para que la función NO termine antes de tiempo
+        const parallelResults = await Promise.all(embedsToResolve.map(async embed => {
           const sName = embed.server;
           const fetched = htmlMap[embed.url];
           if (!fetched || !fetched.ok || !fetched.html) return null;
@@ -252,15 +252,19 @@ async function getStreams(tmdbId, mediaType, season, episode) {
             else if (sName === "vidhide") res = await resolveVidhide(embed.url, fetched.html);
             if (res) {
               const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
+              // Enviamos el resultado a la App de inmediato para que aparezca en pantalla
               if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
+              return item;
             }
           } catch (e) {
             console.log(`[Embed69] Error resolviendo ${sName}: ${e.message}`);
           }
-        });
+          return null;
+        }));
 
-        console.log(`[Embed69] Resolución nativa iniciada en segundo plano.`);
-        return []; // Retornamos rápido, los resultados llegarán vía __yield_result
+        const finalResults = parallelResults.filter(Boolean);
+        console.log(`[Embed69] Resolución nativa completada: ${finalResults.length} resultados.`);
+        return finalResults;
       } catch (e) {
         console.log(`[Embed69] Error en batch nativo: ${e.message}. Cayendo a modo estándar.`);
       }
