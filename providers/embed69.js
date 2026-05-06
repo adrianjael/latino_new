@@ -244,21 +244,31 @@ var require_streamwish = __commonJS({
             }
           }
           if (!success) {
-            for (const domain of domains) {
+            console.log(`[Streamwish] Probando ${domains.length} espejos en paralelo...`);
+            const domainPromises = domains.map((domain) => __async(this, null, function* () {
               try {
                 const fetchUrl = url.replace(/[^/]+\.(?:com|to|pro|net|org)/, domain);
-                console.log(`[Streamwish] Probando espejo: ${domain}`);
-                const res = yield fetch(fetchUrl, { headers: { "User-Agent": USER_AGENT, "Referer": "https://embed69.org/" } });
+                const res = yield fetch(fetchUrl, { 
+                  headers: { "User-Agent": USER_AGENT, "Referer": "https://embed69.org/" },
+                  signal: AbortSignal.timeout(4000) // Timeout de 4s por espejo
+                });
                 if (res.ok) {
-                  html = yield res.text();
-                  finalOrigin = `https://${domain}`;
-                  if (html.includes(".m3u8") || html.includes("eval(function")) {
-                    success = true;
-                    break;
+                  const text = yield res.text();
+                  if (text.includes(".m3u8") || text.includes("eval(function")) {
+                    return { html: text, origin: `https://${domain}` };
                   }
                 }
-              } catch (e) {
-              }
+              } catch (e) {}
+              throw new Error("Failed");
+            }));
+
+            try {
+              const fastest = yield Promise.any(domainPromises);
+              html = fastest.html;
+              finalOrigin = fastest.origin;
+              success = true;
+            } catch (e) {
+              console.error(`[Streamwish] Todos los espejos fallaron.`);
             }
           }
           if (!success) {
@@ -1007,6 +1017,8 @@ var require_resolvers = __commonJS({
 // src/shared/utils/tmdb.js
 var require_tmdb = __commonJS({
   "src/shared/utils/tmdb.js"(exports2, module2) {
+    const ID_CACHE = {}; // Caché simple en memoria
+
     function getTmdbApiKey() {
       const settings = typeof globalThis !== "undefined" && globalThis.SCRAPER_SETTINGS || {};
       const appKey = settings.tmdb_api_key || settings.tmdbApiKey || (typeof TMDB_API_KEY !== "undefined" ? TMDB_API_KEY : null);
@@ -1017,16 +1029,22 @@ var require_tmdb = __commonJS({
       return __async(this, null, function* () {
         try {
           const type = String(mediaType || "").toLowerCase().includes("movie") ? "movie" : "tv";
+          const cacheKey = `${type}_${tmdbId}`;
+          if (ID_CACHE[cacheKey]) return ID_CACHE[cacheKey];
+
           const apiKey = getTmdbApiKey();
           const url = `https://api.themoviedb.org/3/${type}/${tmdbId}/external_ids?api_key=${apiKey}`;
           console.log(`[TMDB] Consultando (${type}): ${tmdbId}`);
           const response = yield fetch(url, {
-            headers: { "User-Agent": NUVIO_UA }
+            headers: { "User-Agent": NUVIO_UA },
+            signal: AbortSignal.timeout(3000) // Timeout de 3s para TMDB
           });
           if (!response.ok)
             return null;
           const data = yield response.json();
-          return data ? data.imdb_id || null : null;
+          const imdbId = data ? data.imdb_id || null : null;
+          if (imdbId) ID_CACHE[cacheKey] = imdbId;
+          return imdbId;
         } catch (e) {
           console.error("[TMDB] Error obteniendo IMDB ID:", e.message);
           return null;
