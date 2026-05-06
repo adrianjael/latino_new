@@ -215,7 +215,13 @@ module.exports = {
       let imdbId = id.startsWith("tt") ? id : yield tmdb.getImdbId(id, type);
       if (!imdbId) return [];
       const urlId = (type === "tv" && s) ? `${imdbId}-${s}x${String(e).padStart(2, "0")}` : imdbId;
-      const html = yield (yield fetch(`https://embed69.org/f/${urlId}`)).text();
+      
+      const res = yield fetch(`https://embed69.org/f/${urlId}`, {
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" }
+      });
+      if (!res.ok) return [];
+      const html = yield res.text();
+      
       const m = html.match(/dataLink\s*=\s*([\[\{][\s\S]*?[\]\}]);/);
       if (!m) return [];
       let data = JSON.parse(m[1]);
