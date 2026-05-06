@@ -975,6 +975,8 @@ var require_resolvers = __commonJS({
             return null;
           }
           if (result && result.url) {
+            // Optimización: Desactivamos la detección de calidad lenta para ganar 5 segundos de velocidad
+            /*
             try {
               console.log(`[Resolvers] Detectando calidad real para: ${name}`);
               const detection = yield m3u8Parser.detectRealQuality(result.url, result.headers || {});
@@ -983,12 +985,13 @@ var require_resolvers = __commonJS({
                 result.quality = detection.quality;
                 result.verified = true;
               } else if (detection && detection.error) {
-                console.log(`[Resolvers] Depuraci\xF3n de calidad: ${detection.error}`);
+                console.log(`[Resolvers] Depuración de calidad: ${detection.error}`);
                 result.debug = detection.error;
               }
             } catch (e) {
-              console.error(`[Resolvers] Fallo en detecci\xF3n de calidad: ${e.message}`);
+              console.error(`[Resolvers] Fallo en detección de calidad: ${e.message}`);
             }
+            */
           }
           console.log(`[Resolvers] Finalizada resoluci\xF3n de: ${name}`);
           return result;
