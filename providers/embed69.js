@@ -239,34 +239,36 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         };
 
         // Procesar cada embed con su HTML ya descargado (en paralelo)
-        // Usamos await Promise.all para que la función NO termine antes de tiempo
-        const parallelResults = await Promise.all(embedsToResolve.map(async embed => {
+        // Usamos map con una promesa interna pero NO bloqueamos el retorno de los rápidos
+        const parallelPromises = embedsToResolve.map(async embed => {
           const sName = embed.server;
-          const fetched = htmlMap[embed.url];
-          if (!fetched || !fetched.ok || !fetched.html) return null;
+          const fetched = _htmlCache[embed.url]; // Usar el caché directamente para máxima velocidad
+          if (!fetched) return null;
           try {
             let res = null;
-            if (sName === "filemoon") res = await resolveFilemoon(embed.url, fetched.html);
-            else if (sName === "voe") res = await resolveVoe(embed.url, fetched.html);
-            else if (sName === "streamwish") res = await resolveStreamwish(embed.url, fetched.html);
-            else if (sName === "vidhide") res = await resolveVidhide(embed.url, fetched.html);
+            if (sName === "filemoon") res = await resolveFilemoon(embed.url);
+            else if (sName === "voe") res = await resolveVoe(embed.url);
+            else if (sName === "streamwish") res = await resolveStreamwish(embed.url);
+            else if (sName === "vidhide") res = await resolveVidhide(embed.url);
             if (res) {
               const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
-              // Enviamos el resultado a la App de inmediato para que aparezca en pantalla
               if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
               return item;
             }
-          } catch (e) {
-            console.log(`[Embed69] Error resolviendo ${sName}: ${e.message}`);
-          }
+          } catch (e) { }
           return null;
-        }));
+        });
 
-        const finalResults = parallelResults.filter(Boolean);
-        console.log(`[Embed69] Resolución nativa completada: ${finalResults.length} resultados.`);
-        return finalResults;
+        // TRUCO NITRO: Si en 2.5 segundos tenemos resultados, retornamos la lista parcial.
+        // Filemoon seguirá enviando sus resultados por __yield_result después.
+        const fastResults = await Promise.race([
+          Promise.all(parallelPromises),
+          new Promise(resolve => setTimeout(() => resolve(null), 2500))
+        ]);
+
+        return fastResults ? fastResults.filter(Boolean) : [];
       } catch (e) {
-        console.log(`[Embed69] Error en batch nativo: ${e.message}. Cayendo a modo estándar.`);
+        console.log(`[Embed69] Error en batch nativo: ${e.message}.`);
       }
     }
 
@@ -295,5 +297,21 @@ async function getStreams(tmdbId, mediaType, season, episode) {
   }
 }
 
-module.exports = { getStreams };
+async function getEpisodes(tmdbId, season) {
+  try {
+    const cleanId = String(tmdbId).split("|")[0].replace(/^(tmdb|movie|series):/, "").split(":")[0];
+    const url = `https://api.themoviedb.org/3/tv/${cleanId}/season/${season}?api_key=439c478a771f35c05022f9feabcca01c&language=es-MX`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return (data.episodes || []).map(ep => ({
+      name: ep.name || `Episodio ${ep.episode_number}`,
+      episode: ep.episode_number,
+      season: ep.season_number,
+      overview: ep.overview,
+      still_path: ep.still_path ? `https://image.tmdb.org/t/p/w300${ep.still_path}` : null
+    }));
+  } catch (e) { return []; }
+}
+
+module.exports = { getStreams, getEpisodes };
 ;
