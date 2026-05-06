@@ -1,6 +1,6 @@
 /**
- * embed69 - Plugin Nuvio (Versión 1.1.5 - REPARACIÓN TOTAL)
- * Filemoon Nativo Protegido + Debug Avanzado
+ * embed69 - Plugin Nuvio (Versión 1.1.6 - ESCANEO PROFUNDO)
+ * v1.1.6 - Logs de respuesta para diagnosticar bloqueos de red.
  */
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -45,12 +45,7 @@ var require_unpacker = __commonJS({
         let [, p, a, c, k] = match;
         a = parseInt(a); c = parseInt(c);
         let kArr = k.split("|");
-        return p.replace(/\b\w+\b/g, (e) => {
-          const index = parseInt(e, 36);
-          let word = kArr[index];
-          if (!word) word = kArr[parseInt(e, a)];
-          return word || e;
-        });
+        return p.replace(/\b\w+\b/g, (e) => kArr[parseInt(e, a)] || e);
       } catch (e) { return code; }
     }
     module2.exports = { unpack };
@@ -84,8 +79,10 @@ var require_resolvers = __commonJS({
     
     const registry = {
       vidhide: function*(url) {
+          console.log(`[VidHide] Fetching: ${url}`);
           const res = yield fetch(url, { headers: { "User-Agent": UA, "Referer": "https://embed69.org/" } });
           let html = yield res.text();
+          console.log(`[VidHide] HTML Length: ${html.length}. Preview: ${html.substring(0, 100).replace(/\n/g, " ")}`);
           if (html.includes("window.location.href") && html.length < 2000) {
               const m = html.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/i);
               if (m) return yield* registry.vidhide(m[1]);
@@ -96,14 +93,20 @@ var require_resolvers = __commonJS({
           return file ? { url: file[1], quality: "1080p", headers: { "User-Agent": UA, "Referer": new URL(url).origin + "/" } } : null;
       },
       streamwish: function*(url) {
-          const h = yield (yield fetch(url, { headers: { "User-Agent": UA, "Referer": "https://embed69.org/" } })).text();
+          console.log(`[Streamwish] Fetching: ${url}`);
+          const res = yield fetch(url, { headers: { "User-Agent": UA, "Referer": "https://embed69.org/" } });
+          const h = yield res.text();
+          console.log(`[Streamwish] HTML Length: ${h.length}`);
           const evalMatch = h.match(/eval\(function\(p,a,c,k,e,[rd]\)[\s\S]*?\.split\('\|'\)[^\)]*\)\)/);
           let c = h + (evalMatch ? "\n" + unpack(evalMatch[0]) : "");
           const file = c.match(/(?:file|source|src|hls)\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']/i);
           return file ? { url: file[1], quality: "Auto", headers: { "User-Agent": UA } } : null;
       },
       voe: function*(url) {
-          const h = yield (yield fetch(url, { headers: { "User-Agent": UA, "Referer": url } })).text();
+          console.log(`[VOE] Fetching: ${url}`);
+          const res = yield fetch(url, { headers: { "User-Agent": UA, "Referer": "https://embed69.org/" } });
+          const h = yield res.text();
+          console.log(`[VOE] HTML Length: ${h.length}`);
           const json = h.match(/<script type="application\/json">([\s\S]*?)<\/script>/);
           if (json) {
               let d = JSON.parse(json[1]).replace(/[a-zA-Z]/g, c => String.fromCharCode(c.charCodeAt(0) + (c.toLowerCase() <= 'm' ? 13 : -13)));
@@ -117,25 +120,21 @@ var require_resolvers = __commonJS({
       },
       filemoon: function*(url) {
           try {
+              console.log(`[Filemoon] Iniciando Bypass Nativo: ${url}`);
               const videoId = url.split("/").pop();
               const domain = new URL(url).origin;
               const details = yield (yield fetch(`${domain}/api/videos/${videoId}/embed/details`, { headers: { "User-Agent": UA } })).json();
               const pbDomain = new URL(details.embed_frame_url).origin;
-
               const challenge = yield (yield fetch(`${pbDomain}/api/videos/access/challenge`, { method: 'POST', headers: { "Referer": details.embed_frame_url, "Origin": pbDomain, "User-Agent": UA } })).json();
-              
               const sig = typeof __crypto_ecdsa_sign_secp256r1 === "function" ? __crypto_ecdsa_sign_secp256r1(challenge.nonce) : "{}";
               const attestJson = JSON.parse(sig);
               if (!attestJson.signature) return null;
-
               const uuidv4 = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
                   var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
                   return v.toString(16);
               }).replace(/-/g, '');
-
               const vId = uuidv4();
               const dId = uuidv4();
-
               const attestRes = yield (yield fetch(`${pbDomain}/api/videos/access/attest`, {
                   method: 'POST', headers: { "Content-Type": "application/json", "Referer": details.embed_frame_url, "Origin": pbDomain, "User-Agent": UA },
                   body: JSON.stringify({
@@ -146,22 +145,19 @@ var require_resolvers = __commonJS({
                       attributes: { entropy: "high" }
                   })
               })).json();
-
               if (!attestRes.token) return null;
-
               const playback = yield (yield fetch(`${pbDomain}/api/videos/${videoId}/embed/playback`, {
                   method: 'POST', headers: { "Content-Type": "application/json", "Referer": details.embed_frame_url, "Origin": pbDomain, "User-Agent": UA },
                   body: JSON.stringify({ fingerprint: { token: attestRes.token, viewer_id: vId, device_id: dId, confidence: attestRes.confidence } })
               })).json();
-              
               if (!playback.playback) return null;
               const pb = playback.playback;
-
               const dec = typeof __crypto_aes_gcm_decrypt === "function" ? __crypto_aes_gcm_decrypt(JSON.stringify(pb.key_parts), pb.iv, pb.payload) : "";
               if (!dec) return null;
               const final = JSON.parse(dec);
+              console.log(`[Filemoon] Éxito: Enlace encontrado.`);
               return { url: final.sources[0].url, quality: final.sources[0].label || "1080p", headers: { "User-Agent": UA, "Referer": domain + "/", "Origin": domain } };
-          } catch (e) { console.error(`[Filemoon] Error Bypass: ${e.message}`); return null; }
+          } catch (e) { console.error(`[Filemoon] Error: ${e.message}`); return null; }
       }
     };
 
@@ -192,7 +188,7 @@ function decodeJwt(token) {
 module.exports = {
   getStreams: (id, type, s, e) => __async(null, null, function* () {
     try {
-      console.log(`[Latino TV] Iniciando búsqueda: ${id} [${type}]`);
+      console.log(`[Latino TV] Iniciando búsqueda: ${id}`);
       let imdbId = id.startsWith("tt") ? id : yield tmdb.getImdbId(id, type);
       if (!imdbId) return [];
       
