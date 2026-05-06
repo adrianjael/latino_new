@@ -244,31 +244,39 @@ var require_streamwish = __commonJS({
             }
           }
           if (!success) {
-            console.log(`[Streamwish] Probando ${domains.length} espejos en paralelo...`);
-            const domainPromises = domains.map((domain) => __async(this, null, function* () {
-              try {
-                const fetchUrl = url.replace(/[^/]+\.(?:com|to|pro|net|org)/, domain);
-                const res = yield fetch(fetchUrl, { 
-                  headers: { "User-Agent": USER_AGENT, "Referer": "https://embed69.org/" },
-                  signal: AbortSignal.timeout(4000) // Timeout de 4s por espejo
+            console.log(`[Streamwish] Probando ${domains.length} espejos en paralelo (Legacy Race)...`);
+            const raceResults = yield new Promise((resolve) => {
+                let finished = false;
+                let failCount = 0;
+                domains.forEach((domain) => {
+                    const fetchUrl = url.replace(/[^/]+\.(?:com|to|pro|net|org)/, domain);
+                    fetch(fetchUrl, { headers: { "User-Agent": USER_AGENT, "Referer": "https://embed69.org/" } })
+                        .then(res => res.ok ? res.text() : Promise.reject())
+                        .then(text => {
+                            if (!finished && (text.includes(".m3u8") || text.includes("eval(function"))) {
+                                finished = true;
+                                resolve({ html: text, origin: `https://${domain}` });
+                            } else {
+                                throw new Error("Invalid content");
+                            }
+                        })
+                        .catch(() => {
+                            failCount++;
+                            if (failCount >= domains.length && !finished) {
+                                resolve(null);
+                            }
+                        });
                 });
-                if (res.ok) {
-                  const text = yield res.text();
-                  if (text.includes(".m3u8") || text.includes("eval(function")) {
-                    return { html: text, origin: `https://${domain}` };
-                  }
-                }
-              } catch (e) {}
-              throw new Error("Failed");
-            }));
+                // Timeout global de seguridad de 5s para la carrera
+                setTimeout(() => { if (!finished) resolve(null); }, 5000);
+            });
 
-            try {
-              const fastest = yield Promise.any(domainPromises);
-              html = fastest.html;
-              finalOrigin = fastest.origin;
-              success = true;
-            } catch (e) {
-              console.error(`[Streamwish] Todos los espejos fallaron.`);
+            if (raceResults) {
+                html = raceResults.html;
+                finalOrigin = raceResults.origin;
+                success = true;
+            } else {
+                console.error(`[Streamwish] Todos los espejos fallaron o timeout.`);
             }
           }
           if (!success) {
