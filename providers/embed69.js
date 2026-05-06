@@ -500,92 +500,152 @@ var require_filemoon = __commonJS({
     var { decryptByse } = require_aes_gcm();
     function resolveFilemoon(url) {
       return __async(this, null, function* () {
-        var _a, _b, _c, _d;
         try {
-          console.log(`[Resolvers] Filemoon Shield-Resolving: ${url}`);
-          const urlObj = new URL(url);
-          const hostname = urlObj.hostname;
-          const videoId = urlObj.pathname.split("/").filter((p) => !!p).pop();
-          if (!videoId)
-            return null;
-          try {
-            const hasAES = typeof CryptoJS !== "undefined" && !!CryptoJS.AES;
-            if (hasAES) {
-              const playbackUrl = `https://${hostname}/api/videos/${videoId}/embed/playback`;
-              console.log(`[Resolvers] Filemoon consultando API Playback...`);
-              const response2 = yield fetch(playbackUrl, {
-                headers: {
-                  "User-Agent": USER_AGENT,
-                  "Referer": url,
-                  "Origin": `https://${hostname}`,
-                  "X-Embed-Parent": url,
-                  "Accept": "application/json"
-                }
-              });
-              if (response2.ok) {
-                const playbackData = yield response2.json();
-                if (playbackData && playbackData.playback) {
-                  const decrypted = decryptByse(playbackData.playback);
-                  if (decrypted) {
-                    const data = JSON.parse(decrypted);
-                    const directUrl = ((_b = (_a = data == null ? void 0 : data.sources) == null ? void 0 : _a[0]) == null ? void 0 : _b.url) || (data == null ? void 0 : data.url);
-                    if (directUrl) {
-                      console.log(`[Resolvers] Filemoon Shield Success!`);
-                      return {
-                        url: directUrl,
-                        quality: ((_d = (_c = data == null ? void 0 : data.sources) == null ? void 0 : _c[0]) == null ? void 0 : _d.label) || "1080p",
-                        verified: true,
-                        headers: {
-                          "User-Agent": USER_AGENT,
-                          "Referer": `https://${hostname}/`,
-                          "Origin": `https://${hostname}`
-                        }
-                      };
-                    }
-                  }
-                }
-              }
-            } else {
-              console.log(`[Resolvers] Filemoon Shield omitido: CryptoJS.AES no disponible.`);
-            }
-          } catch (e) {
-            console.log(`[Resolvers] Filemoon Shield Fall\xF3: ${e.message}`);
-          }
-          console.log(`[Resolvers] Filemoon Fallback: Buscando Packer...`);
-          let response = yield fetch(url, {
-            headers: {
-              "User-Agent": USER_AGENT,
-              "Referer": "https://www.cinecalidad.vg/"
-            }
+          console.log(`[Resolvers] Filemoon (Nuvio-Native): ${url}`);
+          const match = url.match(/\/(e|d)\/([a-zA-Z0-9]+)/);
+          if (!match) return null;
+          const linkType = match[1];
+          const videoId = match[2];
+          const currentDomain = new URL(url).origin;
+
+          // 1. Details
+          const detailsUrl = `${currentDomain}/api/videos/${videoId}/embed/details`;
+          let res = yield fetch(detailsUrl, { headers: { "User-Agent": USER_AGENT } });
+          if (!res.ok) return null;
+          let data = yield res.json();
+          const embedFrameUrl = data.embed_frame_url;
+          const playbackDomain = new URL(embedFrameUrl).origin;
+
+          // 2. Challenge
+          const challengeUrl = `${playbackDomain}/api/videos/access/challenge`;
+          res = yield fetch(challengeUrl, {
+              method: 'POST',
+              headers: { "Referer": embedFrameUrl, "Origin": playbackDomain, "User-Agent": USER_AGENT }
           });
-          let html = yield response.text();
-          const directMatch = html.match(/(?:file|source|src|hls|url)\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']/i);
-          if (directMatch) {
-            console.log(`[Resolvers] Filemoon Direct Match Success!`);
-            return { url: directMatch[1], quality: "Auto", headers: { "Referer": url, "User-Agent": USER_AGENT } };
+          if (!res.ok) return null;
+          const challenge = yield res.json();
+          
+          const uuidv4 = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+              var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+              return v.toString(16);
+          }).replace(/-/g, '');
+
+          const viewerId = uuidv4();
+          const deviceId = uuidv4();
+
+          // 3. Attestation (Native Call)
+          let attestJson;
+          try {
+              // Llamada a la función nativa que hemos inyectado en Android/iOS
+              const resultStr = typeof __crypto_ecdsa_sign_secp256r1 === "function" 
+                  ? __crypto_ecdsa_sign_secp256r1(challenge.nonce) 
+                  : "{}";
+              attestJson = JSON.parse(resultStr);
+          } catch(e) {
+              console.error(`[Resolvers] Error en firma ECDSA nativa.`);
+              return null;
           }
-          const evalMatch = html.match(/eval\(function\(p,a,c,k,e,[rd]\)[\s\S]*?\.split\('\|'\)[^\)]*\)\)/g);
-          let contentToSearch = html;
-          if (evalMatch) {
-            evalMatch.forEach((m) => {
-              try {
-                const unpacked = unpack(m);
-                if (unpacked)
-                  contentToSearch += "\n" + unpacked;
-              } catch (e) {
+
+          if (attestJson.error || !attestJson.signature) {
+              console.error(`[Resolvers] ECDSA no soportado o fallido: ${attestJson.error}`);
+              return null;
+          }
+
+          const attestPayload = {
+              viewer_id: viewerId,
+              device_id: deviceId,
+              challenge_id: challenge.challenge_id,
+              nonce: challenge.nonce,
+              signature: attestJson.signature,
+              public_key: {
+                  crv: "P-256", ext: true, key_ops: ["verify"], kty: "EC",
+                  x: attestJson.x, y: attestJson.y
+              },
+              client: {
+                  user_agent: USER_AGENT,
+                  architecture: "x86", bitness: "64", platform: "Windows",
+                  platform_version: "10.0.0", pixel_ratio: 1.0,
+                  screen_width: 1920, screen_height: 1080, languages: ["en-US"]
+              },
+              storage: {
+                  cookie: viewerId, local_storage: viewerId,
+                  indexed_db: `${viewerId}:${deviceId}`, cache_storage: `${viewerId}:${deviceId}`
+              },
+              attributes: { entropy: "high" }
+          };
+
+          const attestUrl = `${playbackDomain}/api/videos/access/attest`;
+          res = yield fetch(attestUrl, {
+              method: 'POST',
+              headers: {
+                  "Content-Type": "application/json",
+                  "Referer": embedFrameUrl,
+                  "Origin": playbackDomain,
+                  "User-Agent": USER_AGENT
+              },
+              body: JSON.stringify(attestPayload)
+          });
+          
+          if (!res.ok) return null;
+          const attestRes = yield res.json();
+
+          // 4. Playback
+          const playbackUrl = `${playbackDomain}/api/videos/${videoId}/embed/playback`;
+          res = yield fetch(playbackUrl, {
+              method: 'POST',
+              headers: {
+                  "Content-Type": "application/json",
+                  "Referer": embedFrameUrl,
+                  "Origin": playbackDomain,
+                  "X-Embed-Parent": (linkType === "e" ? url : ""),
+                  "User-Agent": USER_AGENT
+              },
+              body: JSON.stringify({
+                  fingerprint: {
+                      token: attestRes.token,
+                      viewer_id: viewerId,
+                      device_id: deviceId,
+                      confidence: attestRes.confidence
+                  }
+              })
+          });
+          
+          if (!res.ok) return null;
+          const playbackRes = yield res.json();
+          const pb = playbackRes.playback;
+          
+          // 5. Decrypt (Native Call)
+          let decryptedJsonStr = "";
+          try {
+              if (typeof __crypto_aes_gcm_decrypt === "function") {
+                  decryptedJsonStr = __crypto_aes_gcm_decrypt(
+                      JSON.stringify(pb.key_parts), 
+                      pb.iv, 
+                      pb.payload
+                  );
               }
-            });
+          } catch(e) {
+              console.error(`[Resolvers] Error desencriptando AES nativo.`);
+              return null;
           }
-          const fileMatch = contentToSearch.match(/(?:file|source|src|hls|url)\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']/i);
-          if (fileMatch) {
-            console.log(`[Resolvers] Filemoon Packer Success!`);
-            return {
-              url: fileMatch[1],
-              quality: "Auto",
-              headers: { "Referer": url, "User-Agent": USER_AGENT }
-            };
-          }
-          return null;
+
+          if (!decryptedJsonStr) return null;
+          
+          const decryptedData = JSON.parse(decryptedJsonStr);
+          const sourceUrl = decryptedData.sources[0].url;
+          
+          console.log(`[Resolvers] Filemoon Success!`);
+          return {
+              url: sourceUrl,
+              quality: decryptedData.sources[0].label || "1080p",
+              verified: true,
+              headers: {
+                  "User-Agent": USER_AGENT,
+                  "Referer": `${currentDomain}/`,
+                  "Origin": currentDomain
+              }
+          };
+
         } catch (e) {
           console.error(`[Resolvers] Error en Filemoon: ${e.message}`);
           return null;
