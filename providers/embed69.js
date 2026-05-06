@@ -214,56 +214,32 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         const rawJson = __native_batch_fetch(JSON.stringify(requests));
         const htmlResults = JSON.parse(rawJson); // [{url, html, ok}, ...]
 
-        // Guardar en caché global para que el fetch interceptado lo use
-        const _htmlCache = {};
-        for (const r of htmlResults) {
-          if (r.ok && r.html) _htmlCache[r.url] = r.html;
-        }
+        // Crear un mapa url -> html para acceder rápido
+        const htmlMap = {};
+        for (const r of htmlResults) htmlMap[r.url] = r;
 
-        // Interceptar fetch temporalmente para servir el caché pre-descargado
-        const _originalFetch = globalThis.fetch;
-        try {
-          globalThis.fetch = async (url, opts) => {
-            const urlStr = typeof url === 'string' ? url : url.toString();
-            // Solo interceptar si es una URL de embed original (evitamos romper APIs)
-            if (_htmlCache[urlStr]) {
-              const cachedHtml = _htmlCache[urlStr];
-              return {
-                ok: true, status: 200,
-                text: async () => cachedHtml,
-                json: async () => JSON.parse(cachedHtml),
-                headers: new Map([['content-type', 'text/html']])
-              };
+        const parallelResults = await Promise.all(embedsToResolve.map(async embed => {
+          const sName = embed.server;
+          const fetched = htmlMap[embed.url];
+          if (!fetched || !fetched.ok || !fetched.html) return null;
+          try {
+            let res = null;
+            if (sName === "filemoon") res = await resolveFilemoon(embed.url);
+            else if (sName === "voe") res = await resolveVoe(embed.url);
+            else if (sName === "streamwish") res = await resolveStreamwish(embed.url);
+            else if (sName === "vidhide") res = await resolveVidhide(embed.url);
+            if (res) {
+              const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
+              if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
+              return item;
             }
-            return _originalFetch(url, opts);
-          };
+          } catch (e) { }
+          return null;
+        }));
 
-          // Procesar todos en paralelo
-          const parallelResults = await Promise.all(embedsToResolve.map(async embed => {
-            try {
-              const sName = embed.server;
-              let res = null;
-              if (sName === "filemoon") res = await resolveFilemoon(embed.url);
-              else if (sName === "voe") res = await resolveVoe(embed.url);
-              else if (sName === "streamwish") res = await resolveStreamwish(embed.url);
-              else if (sName === "vidhide") res = await resolveVidhide(embed.url);
-              
-              if (res) {
-                const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
-                if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
-                return item;
-              }
-            } catch (e) { }
-            return null;
-          }));
-
-          return parallelResults.filter(Boolean);
-        } finally {
-          globalThis.fetch = _originalFetch;
-        }
-      } catch (e) {
-        console.log(`[Embed69] Error en batch nativo: ${e.message}.`);
-      }
+        const filtered = parallelResults.filter(Boolean);
+        return filtered;
+      } catch (e) { }
     }
 
     // Fallback secuencial si no hay motor nativo
@@ -291,21 +267,5 @@ async function getStreams(tmdbId, mediaType, season, episode) {
   }
 }
 
-async function getEpisodes(tmdbId, season) {
-  try {
-    const cleanId = String(tmdbId).split("|")[0].replace(/^(tmdb|movie|series):/, "").split(":")[0];
-    const url = `https://api.themoviedb.org/3/tv/${cleanId}/season/${season}?api_key=439c478a771f35c05022f9feabcca01c&language=es-MX`;
-    const res = await fetch(url);
-    const data = await res.json();
-    return (data.episodes || []).map(ep => ({
-      name: ep.name || `Episodio ${ep.episode_number}`,
-      episode: ep.episode_number,
-      season: ep.season_number,
-      overview: ep.overview,
-      still_path: ep.still_path ? `https://image.tmdb.org/t/p/w300${ep.still_path}` : null
-    }));
-  } catch (e) { return []; }
-}
-
-module.exports = { getStreams, getEpisodes };
+module.exports = { getStreams };
 ;
