@@ -198,27 +198,51 @@ async function getStreams(tmdbId, mediaType, season, episode) {
       return [];
     }
 
-    const resolvePromises = lat.sortedEmbeds.filter(e => e.link && e.servername !== "download").map(async (embed) => {
+    const embedsToResolve = lat.sortedEmbeds.filter(e => e.link && e.servername !== "download").map(embed => {
+      const b64 = embed.link.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      const payload = JSON.parse(safeAtob(b64));
+      return { server: embed.servername.toLowerCase(), url: payload.link };
+    });
+
+    console.log(`[Embed69] Resolviendo ${embedsToResolve.length} servidores...`);
+
+    // Si la App soporta resolución nativa por lotes (Modo Súper Nitro v1.4.1)
+    if (typeof __native_batch_resolve === "function") {
       try {
-        const b64 = embed.link.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-        const payload = JSON.parse(safeAtob(b64));
-        const sName = embed.servername.toLowerCase();
+        console.log("[Embed69] Usando Resolución Nativa Multihilo 🚀");
+        const batchResultsJson = __native_batch_resolve(JSON.stringify(embedsToResolve));
+        const batchResults = JSON.parse(batchResultsJson);
+        const finalResults = batchResults.map(res => ({
+          name: `Embed69 - ${res.server}`,
+          language: "Latino",
+          quality: res.quality || "HD",
+          url: res.url,
+          headers: res.headers
+        }));
+        console.log(`[Embed69] Resolución nativa completada: ${finalResults.length} resultados.`);
+        return finalResults;
+      } catch (e) {
+        console.log(`[Embed69] Error en Resolución Nativa: ${e.message}. Cayendo a modo estándar.`);
+      }
+    }
+
+    // Modo estándar (lento) si la App es antigua o falla la nativa
+    const resolvePromises = embedsToResolve.map(async (embed) => {
+      try {
+        const sName = embed.server;
         let res = null;
-        if (sName === "filemoon") res = await resolveFilemoon(payload.link);
-        else if (sName === "voe") res = await resolveVoe(payload.link);
-        else if (sName === "streamwish") res = await resolveStreamwish(payload.link);
-        else if (sName === "vidhide") res = await resolveVidhide(payload.link);
+        if (sName === "filemoon") res = await resolveFilemoon(embed.url);
+        else if (sName === "voe") res = await resolveVoe(embed.url);
+        else if (sName === "streamwish") res = await resolveStreamwish(embed.url);
+        else if (sName === "vidhide") res = await resolveVidhide(embed.url);
 
         if (res) {
-          const item = { name: `Embed69 - ${embed.servername}`, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
-          // Enviar resultado en tiempo real a la App (Carga Progresiva)
-          if (typeof __yield_result === "function") {
-            try { __yield_result(JSON.stringify(item)); } catch (e) { }
-          }
+          const item = { name: `Embed69 - ${sName}`, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
+          if (typeof __yield_result === "function") { try { __yield_result(JSON.stringify(item)); } catch (e) { } }
           return item;
         }
       } catch (e) {
-        console.log(`[Embed69] Error en ${embed.servername}: ${e.message}`);
+        console.log(`[Embed69] Error en ${embed.server}: ${e.message}`);
       }
       return null;
     });
