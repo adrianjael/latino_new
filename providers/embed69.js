@@ -1,6 +1,6 @@
 /**
- * embed69 - Plugin Nuvio (CLON EXACTO ANTIGUO + FILEMOON NATIVO)
- * Versión 1.1.3
+ * embed69 - Plugin Nuvio (Versión DEBUG + CLON SEGURO)
+ * v1.1.4 - Con Logs detallados para detectar fallos de red.
  */
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -35,22 +35,7 @@ var __async = (__this, __arguments, generator) => {
   });
 };
 
-// --- HTTP ---
-var require_http = __commonJS({
-  "src/embed69/http.js"(exports2, module2) {
-    var http = {
-      get(url) {
-        return __async(this, null, function* () {
-          const res = yield fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" } });
-          return yield res.text();
-        });
-      }
-    };
-    module2.exports = http;
-  }
-});
-
-// --- UNPACKER ---
+// --- UTILS ---
 var require_unpacker = __commonJS({
   "src/shared/utils/unpacker.js"(exports2, module2) {
     function unpack(code) {
@@ -67,7 +52,6 @@ var require_unpacker = __commonJS({
   }
 });
 
-// --- TMDB ---
 var require_tmdb = __commonJS({
   "src/shared/utils/tmdb.js"(exports2, module2) {
     const CACHE = {};
@@ -77,10 +61,14 @@ var require_tmdb = __commonJS({
         if (CACHE[key]) return CACHE[key];
         try {
           const type = String(mediaType).includes("movie") ? "movie" : "tv";
-          const res = yield (yield fetch(`https://api.themoviedb.org/3/${type}/${tmdbId}/external_ids?api_key=439c478a771f35c05022f9feabcca01c`)).json();
-          if (res.imdb_id) CACHE[key] = res.imdb_id;
-          return res.imdb_id || null;
-        } catch (e) { return null; }
+          console.log(`[TMDB] Consultando external_ids para: ${tmdbId}`);
+          const res = yield fetch(`https://api.themoviedb.org/3/${type}/${tmdbId}/external_ids?api_key=439c478a771f35c05022f9feabcca01c`);
+          if (!res.ok) { console.error(`[TMDB] Error HTTP: ${res.status}`); return null; }
+          const data = yield res.json();
+          if (data.imdb_id) CACHE[key] = data.imdb_id;
+          console.log(`[TMDB] IMDb ID encontrado: ${data.imdb_id}`);
+          return data.imdb_id || null;
+        } catch (e) { console.error(`[TMDB] Error Fatal: ${e.message}`); return null; }
       })
     };
   }
@@ -94,25 +82,30 @@ var require_resolvers = __commonJS({
     
     const registry = {
       vidhide: function*(url) {
-          const h = yield (yield fetch(url, { headers: { "User-Agent": UA, "Referer": "https://embed69.org/" } })).text();
-          let c = h;
-          if (h.includes("window.location.href")) {
-              const m = h.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/i);
+          console.log(`[VidHide] Iniciando: ${url}`);
+          const res = yield fetch(url, { headers: { "User-Agent": UA, "Referer": "https://embed69.org/" } });
+          let html = yield res.text();
+          if (html.includes("window.location.href")) {
+              const m = html.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/i);
               if (m) return yield* registry.vidhide(m[1]);
           }
-          const evals = h.match(/eval\(function\(p,a,c,k,e,[rd]\)[\s\S]*?\.split\('\|'\)[^\)]*\)\)/g);
-          if (evals) evals.forEach(m => c += "\n" + unpack(m));
-          const file = c.match(/(?:file|source|src|hls)\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']/i);
-          return file ? { url: file[1], quality: "1080p", headers: { "User-Agent": UA, "Referer": new URL(url).origin + "/" } } : null;
+          const evals = html.match(/eval\(function\(p,a,c,k,e,[rd]\)[\s\S]*?\.split\('\|'\)[^\)]*\)\)/g);
+          if (evals) evals.forEach(m => html += "\n" + unpack(m));
+          const file = html.match(/(?:file|source|src|hls)\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']/i);
+          if (file) console.log(`[VidHide] Éxito: Enlace encontrado.`);
+          return file ? { url: file[1], quality: "1080p" } : null;
       },
       streamwish: function*(url) {
+          console.log(`[Streamwish] Iniciando: ${url}`);
           const h = yield (yield fetch(url, { headers: { "User-Agent": UA, "Referer": "https://embed69.org/" } })).text();
           const evalMatch = h.match(/eval\(function\(p,a,c,k,e,[rd]\)[\s\S]*?\.split\('\|'\)[^\)]*\)\)/);
           let c = h + (evalMatch ? "\n" + unpack(evalMatch[0]) : "");
           const file = c.match(/(?:file|source|src|hls)\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']/i);
-          return file ? { url: file[1], quality: "Auto", headers: { "User-Agent": UA } } : null;
+          if (file) console.log(`[Streamwish] Éxito: Enlace encontrado.`);
+          return file ? { url: file[1], quality: "Auto" } : null;
       },
       voe: function*(url) {
+          console.log(`[VOE] Iniciando: ${url}`);
           const h = yield (yield fetch(url, { headers: { "User-Agent": UA, "Referer": url } })).text();
           const json = h.match(/<script type="application\/json">([\s\S]*?)<\/script>/);
           if (json) {
@@ -120,13 +113,17 @@ var require_resolvers = __commonJS({
               ["@$", "^^", "~@", "%?", "*~", "!!", "#&"].forEach(n => d = d.split(n).join(""));
               const s1 = atob(d);
               let s2 = ""; for(let i=0; i<s1.length; i++) s2 += String.fromCharCode(s1.charCodeAt(i)-3);
-              const data = JSON.parse(atob(s2.split("").reverse().join("")));
-              if (data.source) return { url: data.source, quality: "1080p", headers: { "User-Agent": UA, "Referer": url } };
+              const res = JSON.parse(atob(s2.split("").reverse().join("")));
+              if (res.source) {
+                  console.log(`[VOE] Éxito: Enlace encontrado.`);
+                  return { url: res.source, quality: "1080p" };
+              }
           }
           return null;
       },
       filemoon: function*(url) {
           try {
+              console.log(`[Filemoon] Iniciando Bypass Nativo: ${url}`);
               const videoId = url.split("/").pop();
               const domain = new URL(url).origin;
               const details = yield (yield fetch(`${domain}/api/videos/${videoId}/embed/details`, { headers: { "User-Agent": UA } })).json();
@@ -134,7 +131,7 @@ var require_resolvers = __commonJS({
               const challenge = yield (yield fetch(`${pbDomain}/api/videos/access/challenge`, { method: 'POST', headers: { "Referer": details.embed_frame_url, "Origin": pbDomain, "User-Agent": UA } })).json();
               const sig = typeof __crypto_ecdsa_sign_secp256r1 === "function" ? __crypto_ecdsa_sign_secp256r1(challenge.nonce) : "{}";
               const attestJson = JSON.parse(sig);
-              if (!attestJson.signature) return null;
+              if (!attestJson.signature) { console.error("[Filemoon] Fallo firma ECDSA"); return null; }
               const vId = 'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g, c => (Math.random()*16|0).toString(16));
               const attest = yield (yield fetch(`${pbDomain}/api/videos/access/attest`, {
                   method: 'POST', headers: { "Content-Type": "application/json", "Referer": details.embed_frame_url, "Origin": pbDomain, "User-Agent": UA },
@@ -152,8 +149,9 @@ var require_resolvers = __commonJS({
               const dec = typeof __crypto_aes_gcm_decrypt === "function" ? __crypto_aes_gcm_decrypt(JSON.stringify(pbRes.playback.key_parts), pbRes.playback.iv, pbRes.playback.payload) : "";
               if (!dec) return null;
               const final = JSON.parse(dec);
+              console.log(`[Filemoon] Éxito: Enlace encontrado.`);
               return { url: final.sources[0].url, quality: final.sources[0].label || "1080p", headers: { "User-Agent": UA, "Referer": domain + "/", "Origin": domain } };
-          } catch (e) { return null; }
+          } catch (e) { console.error(`[Filemoon] Error Bypass: ${e.message}`); return null; }
       }
     };
 
@@ -168,9 +166,8 @@ var require_resolvers = __commonJS({
 });
 
 // --- MAIN ---
-var http = require_http();
-var resolvers = require_resolvers();
 var tmdb = require_tmdb();
+var resolvers = require_resolvers();
 
 function decodeJwt(token) {
     try {
@@ -185,28 +182,49 @@ function decodeJwt(token) {
 module.exports = {
   getStreams: (id, type, s, e) => __async(null, null, function* () {
     try {
-      console.log(`[Latino TV] Buscando: ${id}`);
+      console.log(`[Latino TV] Iniciando búsqueda: ${id} [${type}]`);
       let imdbId = id.startsWith("tt") ? id : yield tmdb.getImdbId(id, type);
-      if (!imdbId) return [];
+      if (!imdbId) { console.error("[Latino TV] No se pudo obtener IMDb ID."); return []; }
+      
       const urlId = (type === "tv" && s) ? `${imdbId}-${s}x${String(e).padStart(2, "0")}` : imdbId;
-      const html = yield http.get(`https://embed69.org/f/${urlId}`);
+      const targetUrl = `https://embed69.org/f/${urlId}`;
+      console.log(`[Latino TV] Entrando a: ${targetUrl}`);
+      
+      const res = yield fetch(targetUrl, { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" } });
+      if (!res.ok) { console.error(`[Latino TV] Error al entrar a Embed69: ${res.status}`); return []; }
+      const html = yield res.text();
+      
       const match = html.match(/dataLink\s*=\s*([\[\{][\s\S]*?[\]\}]);/);
-      if (!match) return [];
+      if (!match) { console.error("[Latino TV] No se encontró dataLink en el HTML."); return []; }
+      
       let data = JSON.parse(match[1]);
       if (!Array.isArray(data)) data = Object.keys(data).map(k => ({ video_language: k, sortedEmbeds: data[k] }));
-      const lat = data.find(i => i.video_language === "LAT");
-      if (!lat) return [];
       
-      const results = yield Promise.allSettled(lat.sortedEmbeds.filter(e => e.link && e.servername !== "download").map(e => __async(this, null, function* () {
+      const lat = data.find(i => i.video_language === "LAT");
+      if (!lat) { console.error("[Latino TV] No se encontraron servidores en LATINO."); return []; }
+      
+      const embeds = lat.sortedEmbeds.filter(e => e.link && e.servername !== "download");
+      console.log(`[Latino TV] Procesando ${embeds.length} servidores en paralelo...`);
+      
+      const results = yield Promise.allSettled(embeds.map(e => __async(this, null, function* () {
           try {
               const payload = decodeJwt(e.link);
-              if (!payload) return null;
-              const res = yield resolvers.resolve(e.servername, payload.link);
-              if (!res) return null;
-              return { name: `Embed69 - ${e.servername}`, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
+              if (!payload) { console.error(`[Latino TV] Error decodificando JWT para ${e.servername}`); return null; }
+              const resResolved = yield resolvers.resolve(e.servername, payload.link);
+              if (!resResolved) return null;
+              return { 
+                  name: `Embed69 - ${e.servername}`, 
+                  language: "Latino", 
+                  quality: resResolved.quality || "HD", 
+                  url: resResolved.url, 
+                  headers: resResolved.headers 
+              };
           } catch(err) { return null; }
       })));
-      return results.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
-    } catch (e) { return []; }
+      
+      const finalStreams = results.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
+      console.log(`[Latino TV] Finalizado: ${finalStreams.length} resultados encontrados.`);
+      return finalStreams;
+    } catch (e) { console.error(`[Latino TV] Error Global: ${e.message}`); return []; }
   })
 };
