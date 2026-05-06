@@ -1,13 +1,13 @@
 {
     "name": "Latino - AdrianJael",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "description": "Contenido exclusivo en Español Latino para NuvioMobile",
     "scrapers": [
         {
             "id": "embed69",
             "name": "Embed69",
             "description": "Latino - Calidad Real con check ✅",
-            "version": "1.3.58",
+            "version": "1.3.59",
             "author": "AdrianJael",
             "supportedTypes": [
                 "movie",

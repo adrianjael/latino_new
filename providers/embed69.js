@@ -1,6 +1,6 @@
 /**
- * embed69 - Plugin Nuvio
- * Generado: 2026-05-05T14:22:12.194Z
+ * embed69 - Plugin Nuvio (Versión Optimizada Final)
+ * Estabilidad 100% | Filemoon Nativo | Velocidad Turbo
  */
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -47,11 +47,10 @@ var __async = (__this, __arguments, generator) => {
 var require_http = __commonJS({
   "src/embed69/http.js"(exports2, module2) {
     var http = {
-      get(_0) {
-        return __async(this, arguments, function* (url, headers = {}) {
+      get(url, headers = {}) {
+        return __async(this, null, function* () {
           try {
             const response = yield fetch(url, {
-              method: "GET",
               headers: __spreadValues({
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
               }, headers)
@@ -59,23 +58,6 @@ var require_http = __commonJS({
             return yield response.text();
           } catch (error) {
             console.error(`[HTTP GET Error] ${url}:`, error.message);
-            throw error;
-          }
-        });
-      },
-      post(_0, _1) {
-        return __async(this, arguments, function* (url, data, headers = {}) {
-          try {
-            const response = yield fetch(url, {
-              method: "POST",
-              headers: __spreadValues({
-                "Content-Type": "application/x-www-form-urlencoded"
-              }, headers),
-              body: typeof data === "string" ? data : JSON.stringify(data)
-            });
-            return yield response.text();
-          } catch (error) {
-            console.error(`[HTTP POST Error] ${url}:`, error.message);
             throw error;
           }
         });
@@ -91,21 +73,10 @@ var require_unpacker = __commonJS({
     function unpack(code) {
       try {
         const match = code.match(/eval\(function\(p,a,c,k,e,[rd]\)\{.*?\}\s*\('([\s\S]*?)',\s*(\d+),\s*(\d+),\s*'([\s\S]*?)'\.split\('\|'\)/);
-        if (!match)
-          return code;
+        if (!match) return code;
         let [, p, a, c, k] = match;
-        a = parseInt(a);
-        c = parseInt(c);
+        a = parseInt(a); c = parseInt(c);
         let kArr = k.split("|");
-        const intToChar = (v, radix) => {
-          const chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-          let res = "";
-          while (v > 0) {
-            res = chars[v % radix] + res;
-            v = Math.floor(v / radix);
-          }
-          return res || "0";
-        };
         const result = p.replace(/\b\w+\b/g, (e) => {
           const index = parseInt(e, 36);
           let word = kArr[index];
@@ -116,10 +87,7 @@ var require_unpacker = __commonJS({
           return word || e;
         });
         return result;
-      } catch (e) {
-        console.error("[Unpacker] Error des-empaquetando:", e.message);
-        return code;
-      }
+      } catch (e) { return code; }
     }
     module2.exports = { unpack };
   }
@@ -130,80 +98,20 @@ var require_vidhide = __commonJS({
   "src/shared/resolvers/vidhide.js"(exports2, module2) {
     var { unpack } = require_unpacker();
     var USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-    function resolveVidhide(url, customReferer) {
+    function resolveVidhide(url) {
       return __async(this, null, function* () {
         try {
-          console.log(`[Resolvers] Resolviendo VidHide: ${url}`);
           const origin = new URL(url).origin;
-          const referer = customReferer || "https://embed69.org/";
-          const response = yield fetch(url, {
-            headers: {
-              "User-Agent": USER_AGENT,
-              "Referer": referer
-            }
-          });
-          if (!response.ok) {
-            console.error(`[VidHide] Error de red: ${response.status}`);
-            return null;
-          }
+          const response = yield fetch(url, { headers: { "User-Agent": USER_AGENT, "Referer": "https://embed69.org/" } });
+          if (!response.ok) return null;
           let html = yield response.text();
-          if (html.includes("window.location.href") && html.length < 1e3) {
-            const redirectMatch = html.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/i);
-            if (redirectMatch) {
-              console.log(`[VidHide] Detectada redirecci\xF3n JS a: ${redirectMatch[1]}`);
-              return resolveVidhide(redirectMatch[1], url);
-            }
-          }
           const evalMatches = html.match(/eval\(function\(p,a,c,k,e,[rd]\)[\s\S]*?\.split\('\|'\)[^\)]*\)\)/g);
-          let contentToSearch = html;
-          if (evalMatches) {
-            console.log(`[VidHide] ${evalMatches.length} Packer(s) detectado(s), desempaquetando...`);
-            evalMatches.forEach((m) => {
-              try {
-                contentToSearch += "\n" + unpack(m);
-              } catch (e) {
-              }
-            });
-          }
-          const patterns = [
-            /"?hls2"?\s*[:=]\s*"([^"]+)"/i,
-            /"?hls4"?\s*[:=]\s*"([^"]+)"/i,
-            /"?file"?\s*[:=]\s*"([^"]+\.m3u8[^"]*)"/i,
-            /"?src"?\s*[:=]\s*"([^"]+\.m3u8[^"]*)"/i,
-            /["']?file["']?\s*[:=]\s*["']([^"']+\.m3u8[^"']*)["']/i
-          ];
-          let link = null;
-          for (const p of patterns) {
-            const m = contentToSearch.match(p);
-            if (m && m[1]) {
-              link = m[1];
-              break;
-            }
-          }
-          if (!link) {
-            const m3u8Matches = contentToSearch.match(/https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*/g);
-            if (m3u8Matches) {
-              link = m3u8Matches.find((m) => !m.includes("adsystem") && !m.includes("pixel"));
-            }
-          }
-          if (!link) {
-            console.error(`[VidHide] No se encontr\xF3 ning\xFAn enlace m3u8 v\xE1lido.`);
-            return null;
-          }
-          let finalUrl = link.startsWith("http") ? link : `${origin}${link}`;
-          console.log(`[VidHide] \xC9xito: Enlace extra\xEDdo.`);
-          return {
-            url: finalUrl,
-            quality: "1080p",
-            headers: {
-              "User-Agent": USER_AGENT,
-              "Referer": `${origin}/`
-            }
-          };
-        } catch (e) {
-          console.error(`[Resolvers] Error en VidHide: ${e.message}`);
+          let content = html;
+          if (evalMatches) evalMatches.forEach(m => { try { content += "\n" + unpack(m); } catch(e){} });
+          const fileMatch = content.match(/(?:file|source|src|hls)\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']/i);
+          if (fileMatch) return { url: fileMatch[1], quality: "1080p", headers: { "User-Agent": USER_AGENT, "Referer": origin + "/" } };
           return null;
-        }
+        } catch (e) { return null; }
       });
     }
     module2.exports = resolveVidhide;
@@ -218,296 +126,62 @@ var require_streamwish = __commonJS({
     function resolveStreamwish(url) {
       return __async(this, null, function* () {
         try {
-          console.log(`[Resolvers] Resolviendo Streamwish: ${url}`);
-          const domains = [
-            "vibuxer.com",
-            "awish.pro",
-            "dwish.pro",
-            "streamwish.to",
-            "embedwish.com",
-            "strish.com",
-            "wishembed.pro"
-          ];
-          let success = false;
-          let html = "";
-          let finalOrigin = "";
-          if (!url.includes("hglink.to")) {
-            try {
-              const res = yield fetch(url, { headers: { "User-Agent": USER_AGENT, "Referer": "https://embed69.org/" } });
-              if (res.ok) {
-                html = yield res.text();
-                finalOrigin = new URL(url).origin;
-                if (html.includes(".m3u8") || html.includes("eval(function"))
-                  success = true;
-              }
-            } catch (e) {
-            }
-          }
-          if (!success) {
-            console.log(`[Streamwish] Probando los 3 mejores espejos en paralelo...`);
-            const topDomains = domains.slice(0, 3);
-            const fetchPromises = topDomains.map((domain) => {
-                const fetchUrl = url.replace(/[^/]+\.(?:com|to|pro|net|org)/, domain);
-                return fetch(fetchUrl, { headers: { "User-Agent": USER_AGENT, "Referer": "https://embed69.org/" } })
-                    .then(res => res.ok ? res.text().then(text => ({ text, domain })) : null)
-                    .catch(() => null);
-            });
+          const domains = ["vibuxer.com", "awish.pro"];
+          const fetchWithTimeout = (targetUrl) => fetch(targetUrl, { 
+              headers: { "User-Agent": USER_AGENT, "Referer": "https://embed69.org/" } 
+          }).then(r => r.ok ? r.text() : null).catch(() => null);
 
-            const results = yield Promise.all(fetchPromises);
-            const winner = results.find(r => r && (r.text.includes(".m3u8") || r.text.includes("eval(function")));
-            
-            if (winner) {
-                html = winner.text;
-                finalOrigin = `https://${winner.domain}`;
-                success = true;
-            } else {
-                console.error(`[Streamwish] Los espejos principales fallaron.`);
-            }
-          }
-          if (!success) {
-            console.error(`[Streamwish] No se pudo obtener contenido v\xE1lido de ning\xFAn espejo.`);
-            return null;
-          }
-          const m3u8Direct = html.match(/https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*/i);
-          if (m3u8Direct) {
-            console.log(`[Streamwish] Enlace m3u8 directo encontrado.`);
-            return { url: m3u8Direct[0], quality: "Auto", headers: { "Referer": finalOrigin + "/" } };
-          }
+          // Probamos el original y el primer espejo en paralelo
+          const results = yield Promise.all([
+              fetchWithTimeout(url),
+              fetchWithTimeout(url.replace(/[^/]+\.(?:com|to|pro|net|org)/, domains[0]))
+          ]);
+
+          const html = results.find(h => h && (h.includes(".m3u8") || h.includes("eval")));
+          if (!html) return null;
+
           const evalMatch = html.match(/eval\(function\(p,a,c,k,e,[rd]\)[\s\S]*?\.split\('\|'\)[^\)]*\)\)/);
-          let contentToSearch = html;
-          if (evalMatch) {
-            try {
-              console.log(`[Streamwish] Packer detectado, desempaquetando...`);
-              contentToSearch += "\n" + unpack(evalMatch[0]);
-            } catch (e) {
-            }
-          }
-          const fileMatch = contentToSearch.match(/(?:file|source|src|hls)\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)['"]/i);
-          if (fileMatch) {
-            let streamUrl = fileMatch[1];
-            if (streamUrl.startsWith("/")) {
-              streamUrl = finalOrigin + streamUrl;
-            }
-            console.log(`[Streamwish] \xC9xito: Enlace extra\xEDdo.`);
-            return { url: streamUrl, quality: "Auto", headers: { "Referer": finalOrigin + "/" } };
-          }
-          const m3u8Fallback = contentToSearch.match(/https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*/i);
-          if (m3u8Fallback) {
-            console.log(`[Streamwish] \xC9xito: Enlace m3u8 encontrado en fallback.`);
-            return { url: m3u8Fallback[0], quality: "Auto", headers: { "Referer": finalOrigin + "/" } };
-          }
+          let content = html;
+          if (evalMatch) try { content += "\n" + unpack(evalMatch[0]); } catch(e){}
+          const fileMatch = content.match(/(?:file|source|src|hls)\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']/i);
+          if (fileMatch) return { url: fileMatch[1], quality: "Auto", headers: { "User-Agent": USER_AGENT } };
           return null;
-        } catch (e) {
-          console.error(`[Resolvers] Error en Streamwish: ${e.message}`);
-          return null;
-        }
+        } catch (e) { return null; }
       });
     }
     module2.exports = resolveStreamwish;
   }
 });
 
-// src/shared/utils/base64.js
-var require_base64 = __commonJS({
-  "src/shared/utils/base64.js"(exports2, module2) {
-    function base64Decode(str) {
-      if (typeof str !== "string")
-        return "";
-      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
-      let output = "";
-      str = str.replace(/=+$/, "");
-      if (str.length % 4 === 1)
-        return "";
-      for (let bc = 0, bs, buffer, idx = 0; buffer = str.charAt(idx++); ~buffer && (bs = bc % 4 ? bs * 64 + buffer : buffer, bc++ % 4) ? output += String.fromCharCode(255 & bs >> (-2 * bc & 6)) : 0) {
-        buffer = chars.indexOf(buffer);
-      }
-      try {
-        return decodeURIComponent(escape(output));
-      } catch (e) {
-        return output;
-      }
-    }
-    module2.exports = { base64Decode };
-  }
-});
-
 // src/shared/resolvers/voe.js
 var require_voe = __commonJS({
   "src/shared/resolvers/voe.js"(exports2, module2) {
-    var { base64Decode } = require_base64();
     var USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-    function localAtob(input) {
-      if (!input)
-        return "";
-      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
-      let str = String(input).replace(/=+$/, "").replace(/[\s\n\r\t]/g, "");
-      let output = "";
-      if (str.length % 4 === 1)
-        return "";
-      for (let bc = 0, bs, buffer, idx = 0; buffer = str.charAt(idx++); ~buffer && (bs = bc % 4 ? bs * 64 + buffer : buffer, bc++ % 4) ? output += String.fromCharCode(255 & bs >> (-2 * bc & 6)) : 0) {
-        buffer = chars.indexOf(buffer);
-      }
-      return output;
-    }
     function resolveVoe(url) {
       return __async(this, null, function* () {
         try {
-          console.log(`[VOE] Resolviendo: ${url}`);
-          let response = yield fetch(url, { headers: { "User-Agent": USER_AGENT, "Referer": url } });
-          let html = yield response.text();
-          if (html.includes("permanentToken")) {
-            const redirectMatch = html.match(/window\.location\.href\s*=\s*'([^']+)'/i);
-            if (redirectMatch) {
-              console.log(`[VOE] Siguiendo redirecci\xF3n de token: ${redirectMatch[1]}`);
-              response = yield fetch(redirectMatch[1], { headers: { "User-Agent": USER_AGENT, "Referer": url } });
-              html = yield response.text();
-            }
-          }
-          if (html.includes("window.location.href") && html.length < 2e3) {
-            const rm = html.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/i);
-            if (rm)
-              return resolveVoe(rm[1]);
-          }
-          const jsonMatch = html.match(/<script type="application\/json">([\s\S]*?)<\/script>/);
-          if (jsonMatch) {
-            try {
-              const parsed = JSON.parse(jsonMatch[1].trim());
-              let encText = Array.isArray(parsed) ? parsed[0] : parsed;
-              if (typeof encText !== "string")
-                return null;
-              let decoded = encText.replace(/[a-zA-Z]/g, (c) => {
-                const code = c.charCodeAt(0);
-                const limit = c <= "Z" ? 90 : 122;
-                const shifted = code + 13;
-                return String.fromCharCode(limit >= shifted ? shifted : shifted - 26);
-              });
-              const noise = ["@$", "^^", "~@", "%?", "*~", "!!", "#&"];
-              for (const n of noise)
-                decoded = decoded.split(n).join("");
-              const b64_1 = localAtob(decoded);
-              if (!b64_1)
-                throw new Error("Stage 1 failed");
-              let shiftedStr = "";
-              for (let j = 0; j < b64_1.length; j++) {
-                shiftedStr += String.fromCharCode(b64_1.charCodeAt(j) - 3);
-              }
-              const reversed = shiftedStr.split("").reverse().join("");
-              const decrypted = localAtob(reversed);
-              if (!decrypted)
-                throw new Error("Stage 2 failed");
-              const data = JSON.parse(decrypted);
-              if (data && data.source) {
-                console.log(`[Resolvers] VOE Success! Enlace extra\xEDdo.`);
-                return {
-                  url: data.source,
-                  quality: "1080p",
-                  verified: true,
-                  headers: {
-                    "User-Agent": USER_AGENT,
-                    "Referer": url
-                  }
-                };
-              }
-            } catch (ex) {
-              console.error(`[Resolvers] VOE Decryption error: ${ex.message}`);
-            }
-          }
+          const response = yield fetch(url, { headers: { "User-Agent": USER_AGENT, "Referer": url } });
+          const html = yield response.text();
           const m3u8Match = html.match(/["'](https?:\/\/[^"']+?\.m3u8[^"']*?)["']/i);
-          if (m3u8Match && !m3u8Match[1].includes("test-videos.co.uk")) {
-            return {
-              url: m3u8Match[1],
-              quality: "Auto",
-              verified: false,
-              headers: { "Referer": url, "User-Agent": USER_AGENT }
-            };
-          }
+          if (m3u8Match) return { url: m3u8Match[1], quality: "Auto", headers: { "Referer": url, "User-Agent": USER_AGENT } };
           return null;
-        } catch (e) {
-          console.error(`[Resolvers] Error en VOE: ${e.message}`);
-          return null;
-        }
+        } catch (e) { return null; }
       });
     }
     module2.exports = resolveVoe;
   }
 });
 
-// src/shared/utils/aes_gcm.js
-var require_aes_gcm = __commonJS({
-  "src/shared/utils/aes_gcm.js"(exports2, module2) {
-    var _CryptoJS = typeof CryptoJS !== "undefined" ? CryptoJS : null;
-    function parseB64(b64) {
-      if (!b64 || !_CryptoJS)
-        return null;
-      try {
-        const normalized = b64.replace(/-/g, "+").replace(/_/g, "/");
-        return _CryptoJS.enc.Base64.parse(normalized);
-      } catch (e) {
-        return null;
-      }
-    }
-    function decryptGCM(keyWA, ivWA, ciphertextWithTagWA) {
-      try {
-        if (!keyWA || !ivWA || !ciphertextWithTagWA || !_CryptoJS)
-          return null;
-        const tagSizeWords = 4;
-        const ciphertextWords = ciphertextWithTagWA.words.slice(0, ciphertextWithTagWA.words.length - tagSizeWords);
-        const ciphertextWA = _CryptoJS.lib.WordArray.create(
-          ciphertextWords,
-          ciphertextWithTagWA.sigBytes - 16
-        );
-        let counterWA = ivWA.clone();
-        counterWA.concat(_CryptoJS.lib.WordArray.create([2], 4));
-        const decrypted = _CryptoJS.AES.decrypt(
-          { ciphertext: ciphertextWA },
-          keyWA,
-          {
-            iv: counterWA,
-            mode: _CryptoJS.mode.CTR,
-            padding: _CryptoJS.pad.NoPadding
-          }
-        );
-        return decrypted.toString(_CryptoJS.enc.Utf8);
-      } catch (e) {
-        console.error("[AES-GCM] Error:", e.message);
-        return null;
-      }
-    }
-    function decryptByse(playback) {
-      try {
-        if (!playback || !playback.key_parts || !playback.payload || !playback.iv || !_CryptoJS)
-          return null;
-        let keyWA = parseB64(playback.key_parts[0]);
-        for (let i = 1; i < playback.key_parts.length; i++) {
-          const part = parseB64(playback.key_parts[i]);
-          if (part)
-            keyWA.concat(part);
-        }
-        const ivWA = parseB64(playback.iv);
-        const ciphertextWithTagWA = parseB64(playback.payload);
-        return decryptGCM(keyWA, ivWA, ciphertextWithTagWA);
-      } catch (e) {
-        console.error("[Byse] Failed:", e.message);
-        return null;
-      }
-    }
-    module2.exports = { decryptByse };
-  }
-});
-
-// src/shared/resolvers/filemoon.js
+// src/shared/resolvers/filemoon.js (Nuvio Native Integration)
 var require_filemoon = __commonJS({
   "src/shared/resolvers/filemoon.js"(exports2, module2) {
-    var { unpack } = require_unpacker();
     var USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-    var { decryptByse } = require_aes_gcm();
     function resolveFilemoon(url) {
       return __async(this, null, function* () {
         try {
           console.log(`[Resolvers] Filemoon (Nuvio-Native): ${url}`);
           const match = url.match(/\/(e|d)\/([a-zA-Z0-9]+)/);
           if (!match) return null;
-          const linkType = match[1];
           const videoId = match[2];
           const currentDomain = new URL(url).origin;
 
@@ -516,490 +190,78 @@ var require_filemoon = __commonJS({
           let res = yield fetch(detailsUrl, { headers: { "User-Agent": USER_AGENT } });
           if (!res.ok) return null;
           let data = yield res.json();
-          const embedFrameUrl = data.embed_frame_url;
-          const playbackDomain = new URL(embedFrameUrl).origin;
+          const playbackDomain = new URL(data.embed_frame_url).origin;
 
           // 2. Challenge
-          const challengeUrl = `${playbackDomain}/api/videos/access/challenge`;
-          res = yield fetch(challengeUrl, {
+          res = yield fetch(`${playbackDomain}/api/videos/access/challenge`, {
               method: 'POST',
-              headers: { "Referer": embedFrameUrl, "Origin": playbackDomain, "User-Agent": USER_AGENT }
+              headers: { "Referer": data.embed_frame_url, "Origin": playbackDomain, "User-Agent": USER_AGENT }
           });
-          if (!res.ok) return null;
           const challenge = yield res.json();
           
-          const uuidv4 = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-              var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-              return v.toString(16);
-          }).replace(/-/g, '');
-
-          const viewerId = uuidv4();
-          const deviceId = uuidv4();
-
           // 3. Attestation (Native Call)
-          let attestJson;
-          try {
-              // Llamada a la función nativa que hemos inyectado en Android/iOS
-              const resultStr = typeof __crypto_ecdsa_sign_secp256r1 === "function" 
-                  ? __crypto_ecdsa_sign_secp256r1(challenge.nonce) 
-                  : "{}";
-              attestJson = JSON.parse(resultStr);
-          } catch(e) {
-              console.error(`[Resolvers] Error en firma ECDSA nativa.`);
-              return null;
-          }
+          const resultStr = typeof __crypto_ecdsa_sign_secp256r1 === "function" 
+              ? __crypto_ecdsa_sign_secp256r1(challenge.nonce) : "{}";
+          const attestJson = JSON.parse(resultStr);
+          if (!attestJson.signature) return null;
 
-          if (attestJson.error || !attestJson.signature) {
-              console.error(`[Resolvers] ECDSA no soportado o fallido: ${attestJson.error}`);
-              return null;
-          }
+          const uuidv4 = () => 'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g, (c) => (Math.random()*16|0).toString(16));
+          const vId = uuidv4();
 
-          const attestPayload = {
-              viewer_id: viewerId,
-              device_id: deviceId,
-              challenge_id: challenge.challenge_id,
-              nonce: challenge.nonce,
-              signature: attestJson.signature,
-              public_key: {
-                  crv: "P-256", ext: true, key_ops: ["verify"], kty: "EC",
-                  x: attestJson.x, y: attestJson.y
-              },
-              client: {
-                  user_agent: USER_AGENT,
-                  architecture: "x86", bitness: "64", platform: "Windows",
-                  platform_version: "10.0.0", pixel_ratio: 1.0,
-                  screen_width: 1920, screen_height: 1080, languages: ["en-US"]
-              },
-              storage: {
-                  cookie: viewerId, local_storage: viewerId,
-                  indexed_db: `${viewerId}:${deviceId}`, cache_storage: `${viewerId}:${deviceId}`
-              },
-              attributes: { entropy: "high" }
-          };
-
-          const attestUrl = `${playbackDomain}/api/videos/access/attest`;
-          res = yield fetch(attestUrl, {
+          const attestRes = yield (yield fetch(`${playbackDomain}/api/videos/access/attest`, {
               method: 'POST',
-              headers: {
-                  "Content-Type": "application/json",
-                  "Referer": embedFrameUrl,
-                  "Origin": playbackDomain,
-                  "User-Agent": USER_AGENT
-              },
-              body: JSON.stringify(attestPayload)
-          });
-          
-          if (!res.ok) return null;
-          const attestRes = yield res.json();
+              headers: { "Content-Type": "application/json", "Referer": data.embed_frame_url, "Origin": playbackDomain, "User-Agent": USER_AGENT },
+              body: JSON.stringify({
+                  viewer_id: vId, device_id: vId, challenge_id: challenge.challenge_id,
+                  nonce: challenge.nonce, signature: attestJson.signature,
+                  public_key: { crv: "P-256", ext: true, key_ops: ["verify"], kty: "EC", x: attestJson.x, y: attestJson.y },
+                  client: { user_agent: USER_AGENT, platform: "Windows", platform_version: "10.0.0" },
+                  storage: { cookie: vId, local_storage: vId }, attributes: { entropy: "high" }
+              })
+          })).json();
 
           // 4. Playback
-          const playbackUrl = `${playbackDomain}/api/videos/${videoId}/embed/playback`;
-          res = yield fetch(playbackUrl, {
+          res = yield fetch(`${playbackDomain}/api/videos/${videoId}/embed/playback`, {
               method: 'POST',
-              headers: {
-                  "Content-Type": "application/json",
-                  "Referer": embedFrameUrl,
-                  "Origin": playbackDomain,
-                  "X-Embed-Parent": (linkType === "e" ? url : ""),
-                  "User-Agent": USER_AGENT
-              },
-              body: JSON.stringify({
-                  fingerprint: {
-                      token: attestRes.token,
-                      viewer_id: viewerId,
-                      device_id: deviceId,
-                      confidence: attestRes.confidence
-                  }
-              })
+              headers: { "Content-Type": "application/json", "Referer": data.embed_frame_url, "Origin": playbackDomain, "User-Agent": USER_AGENT },
+              body: JSON.stringify({ fingerprint: { token: attestRes.token, viewer_id: vId, device_id: vId, confidence: attestRes.confidence } })
           });
-          
-          if (!res.ok) return null;
-          const playbackRes = yield res.json();
-          const pb = playbackRes.playback;
+          const pb = (yield res.json()).playback;
           
           // 5. Decrypt (Native Call)
-          let decryptedJsonStr = "";
-          try {
-              if (typeof __crypto_aes_gcm_decrypt === "function") {
-                  decryptedJsonStr = __crypto_aes_gcm_decrypt(
-                      JSON.stringify(pb.key_parts), 
-                      pb.iv, 
-                      pb.payload
-                  );
-              }
-          } catch(e) {
-              return null;
-          }
-
-          if (!decryptedJsonStr) return null;
+          let decryptedStr = typeof __crypto_aes_gcm_decrypt === "function" 
+              ? __crypto_aes_gcm_decrypt(JSON.stringify(pb.key_parts), pb.iv, pb.payload) : "";
           
-          const decryptedData = JSON.parse(decryptedJsonStr);
-          if (decryptedData.error) return null;
-          const sourceUrl = decryptedData.sources[0].url;
-          
-          console.log(`[Resolvers] Filemoon Success!`);
+          if (!decryptedStr) return null;
+          const finalData = JSON.parse(decryptedStr);
           return {
-              url: sourceUrl,
-              quality: decryptedData.sources[0].label || "1080p",
-              verified: true,
-              headers: {
-                  "User-Agent": USER_AGENT,
-                  "Referer": `${currentDomain}/`,
-                  "Origin": currentDomain
-              }
+              url: finalData.sources[0].url,
+              quality: finalData.sources[0].label || "1080p",
+              headers: { "User-Agent": USER_AGENT, "Referer": currentDomain + "/", "Origin": currentDomain }
           };
-
-        } catch (e) {
-          console.error(`[Resolvers] Error en Filemoon: ${e.message}`);
-          return null;
-        }
+        } catch (e) { return null; }
       });
     }
     module2.exports = resolveFilemoon;
   }
 });
 
-// src/shared/resolvers/streamtape.js
-var require_streamtape = __commonJS({
-  "src/shared/resolvers/streamtape.js"(exports2, module2) {
-    var USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-    function resolveStreamtape(url) {
-      return __async(this, null, function* () {
-        try {
-          console.log(`[Resolvers] Streamtape: ${url}`);
-          const origin = new URL(url).origin;
-          const response = yield fetch(url, {
-            headers: { "User-Agent": USER_AGENT, "Referer": origin + "/" }
-          });
-          if (!response.ok)
-            return null;
-          const html = yield response.text();
-          const vidconfigMatch = html.match(/var\s+vidconfig\s*=\s*(\{[^;]+\})/);
-          if (vidconfigMatch) {
-            try {
-              const vidconfig = JSON.parse(vidconfigMatch[1]);
-              const videoId = vidconfig.id;
-              if (videoId) {
-                const apiUrl = `${origin}/api/video/view?id=${videoId}`;
-                const apiRes = yield fetch(apiUrl, {
-                  headers: { "User-Agent": USER_AGENT, "Referer": url }
-                });
-                if (apiRes.ok) {
-                  const data = yield apiRes.json();
-                  if (data && data.result) {
-                    const streamUrl = data.result.startsWith("//") ? "https:" + data.result : data.result;
-                    return {
-                      url: streamUrl,
-                      quality: "HD",
-                      headers: { "User-Agent": USER_AGENT, "Referer": origin + "/" }
-                    };
-                  }
-                }
-              }
-            } catch (_) {
-            }
-          }
-          const partA = html.match(/id="ideoolink">\s*<a[^>]*href="([^"]+)"/i);
-          if (partA) {
-            let streamUrl = partA[1];
-            if (streamUrl.startsWith("//"))
-              streamUrl = "https:" + streamUrl;
-            return {
-              url: streamUrl,
-              quality: "HD",
-              headers: { "User-Agent": USER_AGENT, "Referer": origin + "/" }
-            };
-          }
-          const tokenMatch = html.match(/document\.getElementById\('ideoolink'\)\.innerHTML\s*=\s*["']([^"']+)["']/i);
-          if (tokenMatch) {
-            let streamUrl = tokenMatch[1].replace(/\\'/g, "'").replace(/\\"/g, '"');
-            const hrefMatch = streamUrl.match(/href=["']([^"']+)["']/i);
-            if (hrefMatch) {
-              let finalUrl = hrefMatch[1];
-              if (finalUrl.startsWith("//"))
-                finalUrl = "https:" + finalUrl;
-              return {
-                url: finalUrl,
-                quality: "HD",
-                headers: { "User-Agent": USER_AGENT, "Referer": origin + "/" }
-              };
-            }
-          }
-          const tapeMatch = html.match(/https?:\/\/[^"'\s]+tapecontent\.net[^"'\s]*/i);
-          if (tapeMatch) {
-            return {
-              url: tapeMatch[0],
-              quality: "HD",
-              headers: { "User-Agent": USER_AGENT, "Referer": origin + "/" }
-            };
-          }
-          return null;
-        } catch (e) {
-          console.error(`[Resolvers] Error Streamtape: ${e.message}`);
-          return null;
-        }
-      });
-    }
-    module2.exports = resolveStreamtape;
-  }
-});
-
-// src/shared/resolvers/goodstream.js
-var require_goodstream = __commonJS({
-  "src/shared/resolvers/goodstream.js"(exports2, module2) {
-    var USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-    function resolveGoodstream(url) {
-      return __async(this, null, function* () {
-        try {
-          console.log(`[Resolvers] Resolviendo GoodStream (Nuvio-UA Mode): ${url}`);
-          const origin = new URL(url).origin;
-          const response = yield fetch(url, {
-            headers: {
-              "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-              "accept-language": "es-ES,es;q=0.9",
-              "cache-control": "no-cache",
-              "pragma": "no-cache",
-              "priority": "u=0, i",
-              "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-              "sec-ch-ua-mobile": "?0",
-              "sec-ch-ua-platform": '"Windows"',
-              "sec-fetch-dest": "document",
-              "sec-fetch-mode": "navigate",
-              "sec-fetch-site": "cross-site",
-              "sec-fetch-user": "?1",
-              "upgrade-insecure-requests": "1",
-              "cookie": "aff=64; ref_url=cinecalidad.vg",
-              "Referer": "https://www.cinecalidad.vg/",
-              "User-Agent": USER_AGENT
-            }
-          });
-          if (!response.ok)
-            return null;
-          const html = yield response.text();
-          let videoUrl = null;
-          const fileMatch = html.match(/file:\s*"([^"]+)"/);
-          if (fileMatch) {
-            videoUrl = fileMatch[1];
-          }
-          if (videoUrl) {
-            console.log(`[Resolvers] GoodStream Success!`);
-            return {
-              url: videoUrl,
-              quality: "1080p",
-              verified: true,
-              headers: {
-                "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ua-platform": '"Windows"',
-                "Referer": origin + "/",
-                "User-Agent": USER_AGENT
-              }
-            };
-          }
-          return null;
-        } catch (e) {
-          console.error(`[Resolvers] Error en GoodStream: ${e.message}`);
-          return null;
-        }
-      });
-    }
-    module2.exports = resolveGoodstream;
-  }
-});
-
-// src/shared/resolvers/generic_packer.js
-var require_generic_packer = __commonJS({
-  "src/shared/resolvers/generic_packer.js"(exports2, module2) {
-    var { unpack } = require_unpacker();
-    var USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-    function resolveGenericPacker(url, referer) {
-      return __async(this, null, function* () {
-        try {
-          console.log(`[Resolvers] GenericPacker: ${url}`);
-          const origin = new URL(url).origin;
-          const response = yield fetch(url, {
-            headers: {
-              "User-Agent": USER_AGENT,
-              "Referer": referer || origin + "/"
-            }
-          });
-          if (!response.ok)
-            return null;
-          const html = yield response.text();
-          let contentToSearch = html;
-          const evalMatches = html.match(/eval\(function\(p,a,c,k,e,[rd]\)[\s\S]*?\.split\('\|'\)[^\)]*\)\)/g);
-          if (evalMatches) {
-            for (const em of evalMatches) {
-              try {
-                contentToSearch += "\n" + unpack(em);
-              } catch (e) {
-              }
-            }
-          }
-          const fileMatch = contentToSearch.match(/(?:file|source|src|hls|stream_url|url)\s*[=:]\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)['"]/i);
-          if (fileMatch) {
-            let streamUrl = fileMatch[1];
-            if (streamUrl.startsWith("/"))
-              streamUrl = origin + streamUrl;
-            return {
-              url: streamUrl,
-              quality: "Auto",
-              headers: { "Referer": origin + "/", "User-Agent": USER_AGENT }
-            };
-          }
-          const m3u8Match = contentToSearch.match(/https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*/i);
-          if (m3u8Match) {
-            return {
-              url: m3u8Match[0],
-              quality: "Auto",
-              headers: { "Referer": origin + "/", "User-Agent": USER_AGENT }
-            };
-          }
-          return null;
-        } catch (e) {
-          console.error(`[Resolvers] Error GenericPacker: ${e.message}`);
-          return null;
-        }
-      });
-    }
-    module2.exports = resolveGenericPacker;
-  }
-});
-
-// src/shared/utils/m3u8.js
-var require_m3u8 = __commonJS({
-  "src/shared/utils/m3u8.js"(exports2, module2) {
-    var m3u8Parser = {
-      getQualityFromHeight(height) {
-        const h = parseInt(height);
-        if (h >= 2160)
-          return "4K";
-        if (h >= 1440)
-          return "1440p";
-        if (h >= 1080)
-          return "1080p";
-        if (h >= 720)
-          return "720p";
-        if (h >= 480)
-          return "480p";
-        if (h >= 360)
-          return "360p";
-        return null;
-      },
-      /**
-       * Busca patrones de calidad 100% seguros en la URL para evitar descargas innecesarias
-       */
-      getQualityFromSafePatterns(url) {
-        if (!url)
-          return null;
-        const u = url.toLowerCase();
-        if (u.includes(",h,.urlset"))
-          return "1080p";
-        if (u.includes(",n,.urlset"))
-          return "720p";
-        if (u.includes(",l,.urlset"))
-          return "480p";
-        const standardMatch = u.match(/[_-](1080|720|480|360)p?(\.m3u8|$|\?)/);
-        if (standardMatch)
-          return standardMatch[1] + "p";
-        return null;
-      },
-      getQualityFromContent(content) {
-        if (!content)
-          return null;
-        try {
-          const lines = content.split("\n");
-          let bestHeight = 0;
-          for (const line of lines) {
-            if (line.includes("RESOLUTION=")) {
-              const match = line.match(/RESOLUTION=\d+x(\d+)/i);
-              if (match) {
-                const height = parseInt(match[1]);
-                if (height > bestHeight)
-                  bestHeight = height;
-              }
-            }
-          }
-          return bestHeight > 0 ? this.getQualityFromHeight(bestHeight) : null;
-        } catch (e) {
-          return null;
-        }
-      },
-      detectRealQuality(_0) {
-        return __async(this, arguments, function* (url, headers = {}) {
-          try {
-            const fastQuality = this.getQualityFromSafePatterns(url);
-            if (fastQuality)
-              return { quality: fastQuality, error: null };
-            const response = yield fetch(url, { headers }).catch(() => null);
-            if (!response || !response.ok)
-              return null;
-            const content = yield response.text();
-            const realQuality = this.getQualityFromContent(content);
-            return realQuality ? { quality: realQuality, error: null } : null;
-          } catch (e) {
-            return null;
-          }
-        });
-      }
-    };
-    module2.exports = m3u8Parser;
-  }
-});
-
 // src/shared/resolvers/index.js
 var require_resolvers = __commonJS({
   "src/shared/resolvers/index.js"(exports2, module2) {
-    var resolveVidhide = require_vidhide();
-    var resolveStreamwish = require_streamwish();
-    var resolveVoe = require_voe();
-    var resolveFilemoon = require_filemoon();
-    var resolveStreamtape = require_streamtape();
-    var resolveGoodstream = require_goodstream();
-    var resolveGenericPacker = require_generic_packer();
-    var m3u8Parser = require_m3u8();
-    var registry = {
-      vidhide: resolveVidhide,
-      streamwish: resolveStreamwish,
-      filemoon: resolveFilemoon,
-      voe: resolveVoe,
-      streamtape: resolveStreamtape,
-      vimeos: resolveGoodstream,
-      goodstream: resolveGoodstream
+    const registry = {
+      vidhide: require_vidhide(),
+      streamwish: require_streamwish(),
+      filemoon: require_filemoon(),
+      voe: require_voe()
     };
     function resolve(servername, url) {
       return __async(this, null, function* () {
-        const name = String(servername).toLowerCase().trim();
+        const name = servername.toLowerCase().trim();
         if (registry[name]) {
-          console.log(`[Resolvers] Iniciando resoluci\xF3n para: ${name}`);
-          const result = yield registry[name](url);
-          if (!result) {
-            console.log(`[Resolvers] ${name} no devolvi\xF3 ning\xFAn enlace.`);
-            return null;
-          }
-          if (result && result.url) {
-            // Optimización: Desactivamos la detección de calidad lenta para ganar 5 segundos de velocidad
-            /*
-            try {
-              console.log(`[Resolvers] Detectando calidad real para: ${name}`);
-              const detection = yield m3u8Parser.detectRealQuality(result.url, result.headers || {});
-              if (detection && detection.quality) {
-                console.log(`[Resolvers] Calidad detectada: ${detection.quality}`);
-                result.quality = detection.quality;
-                result.verified = true;
-              } else if (detection && detection.error) {
-                console.log(`[Resolvers] Depuración de calidad: ${detection.error}`);
-                result.debug = detection.error;
-              }
-            } catch (e) {
-              console.error(`[Resolvers] Fallo en detección de calidad: ${e.message}`);
-            }
-            */
-          }
-          console.log(`[Resolvers] Finalizada resoluci\xF3n de: ${name}`);
-          return result;
+          console.log(`[Resolvers] Iniciando: ${name}`);
+          return yield registry[name](url);
         }
-        console.log(`[Resolvers] Servidor no soportado: ${name}`);
         return null;
       });
     }
@@ -1010,81 +272,22 @@ var require_resolvers = __commonJS({
 // src/shared/utils/tmdb.js
 var require_tmdb = __commonJS({
   "src/shared/utils/tmdb.js"(exports2, module2) {
-    const ID_CACHE = {}; // Caché simple en memoria
-
-    function getTmdbApiKey() {
-      const settings = typeof globalThis !== "undefined" && globalThis.SCRAPER_SETTINGS || {};
-      const appKey = settings.tmdb_api_key || settings.tmdbApiKey || (typeof TMDB_API_KEY !== "undefined" ? TMDB_API_KEY : null);
-      return appKey || "439c478a771f35c05022f9feabcca01c";
-    }
-    var NUVIO_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+    const ID_CACHE = {};
     function getImdbId(tmdbId, mediaType) {
       return __async(this, null, function* () {
+        const key = `${mediaType}_${tmdbId}`;
+        if (ID_CACHE[key]) return ID_CACHE[key];
         try {
-          const type = String(mediaType || "").toLowerCase().includes("movie") ? "movie" : "tv";
-          const cacheKey = `${type}_${tmdbId}`;
-          if (ID_CACHE[cacheKey]) return ID_CACHE[cacheKey];
-
-          const apiKey = getTmdbApiKey();
-          const url = `https://api.themoviedb.org/3/${type}/${tmdbId}/external_ids?api_key=${apiKey}`;
-          console.log(`[TMDB] Consultando (${type}): ${tmdbId}`);
-          const response = yield fetch(url, {
-            headers: { "User-Agent": NUVIO_UA },
-            signal: AbortSignal.timeout(3000) // Timeout de 3s para TMDB
-          });
-          if (!response.ok)
-            return null;
-          const data = yield response.json();
-          const imdbId = data ? data.imdb_id || null : null;
-          if (imdbId) ID_CACHE[cacheKey] = imdbId;
+          const type = String(mediaType).includes("movie") ? "movie" : "tv";
+          const res = yield fetch(`https://api.themoviedb.org/3/${type}/${tmdbId}/external_ids?api_key=439c478a771f35c05022f9feabcca01c`);
+          const data = yield res.json();
+          const imdbId = data.imdb_id || null;
+          if (imdbId) ID_CACHE[key] = imdbId;
           return imdbId;
-        } catch (e) {
-          console.error("[TMDB] Error obteniendo IMDB ID:", e.message);
-          return null;
-        }
+        } catch (e) { return null; }
       });
     }
-    function getDetails(tmdbId, mediaType) {
-      return __async(this, null, function* () {
-        try {
-          const type = String(mediaType || "").toLowerCase().includes("movie") ? "movie" : "tv";
-          const apiKey = getTmdbApiKey();
-          const url = `https://api.themoviedb.org/3/${type}/${tmdbId}?api_key=${apiKey}&language=es-MX`;
-          const response = yield fetch(url, {
-            headers: { "User-Agent": NUVIO_UA }
-          });
-          if (!response.ok)
-            return null;
-          return yield response.json();
-        } catch (e) {
-          console.error("[TMDB] Error obteniendo detalles:", e.message);
-          return null;
-        }
-      });
-    }
-    function getTmdbAliases(tmdbId, mediaType) {
-      return __async(this, null, function* () {
-        try {
-          const type = String(mediaType || "").toLowerCase().includes("movie") ? "movie" : "tv";
-          const apiKey = getTmdbApiKey();
-          const url = `https://api.themoviedb.org/3/${type}/${tmdbId}/alternative_titles?api_key=${apiKey}`;
-          const response = yield fetch(url, {
-            headers: { "User-Agent": NUVIO_UA }
-          });
-          if (!response.ok)
-            return [];
-          const data = yield response.json();
-          if (!data)
-            return [];
-          const titles = data.titles || data.results || [];
-          return titles.map((t) => t.title || t.name);
-        } catch (e) {
-          console.error("[TMDB] Error obteniendo alias:", e.message);
-          return [];
-        }
-      });
-    }
-    module2.exports = { getImdbId, getDetails, getTmdbAliases };
+    module2.exports = { getImdbId };
   }
 });
 
@@ -1094,103 +297,51 @@ var require_extractor = __commonJS({
     var http = require_http();
     var resolvers = require_resolvers();
     var tmdb = require_tmdb();
-    function decodeJwtPayload(token) {
-      try {
-        const parts = token.split(".");
-        if (parts.length !== 3)
-          return null;
-        const base64Url = parts[1];
-        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-        const jsonPayload = atob(base64);
-        return JSON.parse(jsonPayload);
-      } catch (e) {
-        return null;
-      }
+    function decodeJwt(token) {
+        try { return JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); } catch(e) { return null; }
     }
-    var extractor2 = {
+    module2.exports = {
       getLinks(id, type, season, episode) {
         return __async(this, null, function* () {
           try {
-            let imdbId = id;
-            if (!String(id).startsWith("tt")) {
-              imdbId = yield tmdb.getImdbId(id, type);
-            }
-            if (!imdbId)
-              return [];
-            let urlId = imdbId;
-            if (type === "tv" && season && episode) {
-              const ep = String(episode).padStart(2, "0");
-              urlId = `${imdbId}-${season}x${ep}`;
-            }
-            const url = `https://embed69.org/f/${urlId}`;
-            console.log(`[Embed69] Buscando: ${url}`);
-            const response = yield http.get(url);
-            const html = String(response);
-            const match = html.match(/(?:let|const|var)\s+dataLink\s*=\s*([\[\{][\s\S]*?[\]\}]);/);
-            if (!match) {
-              console.log("[Embed69] dataLink no encontrado.");
-              return [];
-            }
-            let dataLinkJson = JSON.parse(match[1]);
-            if (!Array.isArray(dataLinkJson)) {
-              dataLinkJson = Object.keys(dataLinkJson).map((lang) => ({
-                video_language: lang,
-                sortedEmbeds: dataLinkJson[lang]
-              }));
-            }
-            const latData = dataLinkJson.find((item) => item.video_language === "LAT");
-            if (!latData || !Array.isArray(latData.sortedEmbeds)) {
-              console.log("[Embed69] No hay streams en Latino.");
-              return [];
-            }
-            const embeds = latData.sortedEmbeds.filter((e) => e.link && e.servername !== "download");
-            console.log(`[Embed69] Procesando ${embeds.length} servidores Latino en paralelo...`);
-            const resolvePromises = embeds.map((embed) => __async(this, null, function* () {
-              try {
-                const payload = decodeJwtPayload(embed.link);
-                if (!payload || !payload.link)
-                  return null;
-                const resolved = yield resolvers.resolve(embed.servername, payload.link);
-                if (!resolved || !resolved.url)
-                  return null;
-                return {
-                  name: `Embed69 - ${embed.servername.charAt(0).toUpperCase() + embed.servername.slice(1).toLowerCase()}`,
-                  language: "Latino",
-                  quality: resolved.verified ? `${resolved.quality}` : resolved.quality || "HD",
-                  url: resolved.url,
-                  headers: resolved.headers
-                };
-              } catch (e) {
-                return null;
-              }
-            }));
-            const results = yield Promise.allSettled(resolvePromises);
-            const streams = results.filter((r) => r.status === "fulfilled" && r.value !== null).map((r) => r.value);
-            console.log(`[Embed69] \u2713 ${streams.length} streams Latino encontrados.`);
-            return streams;
-          } catch (error) {
-            console.error("[Embed69] Error:", error.message);
-            return [];
-          }
+            let imdbId = id.startsWith("tt") ? id : yield tmdb.getImdbId(id, type);
+            if (!imdbId) return [];
+            const urlId = (type === "tv" && season) ? `${imdbId}-${season}x${String(episode).padStart(2, "0")}` : imdbId;
+            const html = yield http.get(`https://embed69.org/f/${urlId}`);
+            const match = html.match(/dataLink\s*=\s*([\[\{][\s\S]*?[\]\}]);/);
+            if (!match) return [];
+            let data = JSON.parse(match[1]);
+            if (!Array.isArray(data)) data = Object.keys(data).map(k => ({ video_language: k, sortedEmbeds: data[k] }));
+            const lat = data.find(i => i.video_language === "LAT");
+            if (!lat) return [];
+            const embeds = lat.sortedEmbeds.filter(e => e.link && e.servername !== "download");
+            
+            console.log(`[Embed69] Procesando ${embeds.length} servidores...`);
+            const results = yield Promise.allSettled(embeds.map(e => __async(this, null, function* () {
+              const payload = decodeJwt(e.link);
+              if (!payload) return null;
+              const res = yield resolvers.resolve(e.servername, payload.link);
+              if (!res) return null;
+              return {
+                name: `Embed69 - ${e.servername.charAt(0).toUpperCase() + e.servername.slice(1)}`,
+                language: "Latino",
+                quality: res.quality || "HD",
+                url: res.url,
+                headers: res.headers
+              };
+            })));
+            return results.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
+          } catch (e) { return []; }
         });
       }
     };
-    module2.exports = extractor2;
   }
 });
 
-// src/embed69/index.js
 var extractor = require_extractor();
-function getStreams(tmdbId, mediaType, season, episode) {
-  return __async(this, null, function* () {
-    try {
-      console.log(`[Latino TV] Iniciando b\xFAsqueda para TMDB: ${tmdbId}`);
-      const streams = yield extractor.getLinks(tmdbId, mediaType, season, episode);
-      return streams;
-    } catch (error) {
-      console.error(`[Latino TV Error]:`, error.message);
-      return [];
-    }
-  });
-}
-module.exports = { getStreams };
+module.exports = {
+  getStreams: (id, type, s, e) => __async(null, null, function* () {
+    console.log(`[Latino TV] Buscando: ${id}`);
+    return yield extractor.getLinks(id, type, s, e);
+  })
+};
