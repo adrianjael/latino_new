@@ -1,13 +1,13 @@
 {
     "name": "Latino - AdrianJael",
-    "version": "1.4.5",
+    "version": "1.5.0",
     "description": "Contenido exclusivo en Español Latino para NuvioMobile",
     "scrapers": [
         {
             "id": "embed69",
             "name": "Embed69",
-            "description": "Latino - Versión Súper Estable 🛡️🍿🎬",
-            "version": "1.8.5",
+            "description": "Latino - Hyper-Native Speed 🚀🏎️💨",
+            "version": "1.9.0",
             "author": "AdrianJael",
             "supportedTypes": [
                 "movie",

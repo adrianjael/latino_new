@@ -198,32 +198,42 @@ async function getStreams(tmdbId, mediaType, season, episode) {
       return [];
     }
 
-    const resolvePromises = lat.sortedEmbeds.filter(e => e.link && e.servername !== "download").map(async (embed) => {
-      try {
-        const b64 = embed.link.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-        const payload = JSON.parse(safeAtob(b64));
-        const sName = embed.servername.toLowerCase();
-        let res = null;
-        if (sName === "filemoon") res = await resolveFilemoon(payload.link);
-        else if (sName === "voe") res = await resolveVoe(payload.link);
-        else if (sName === "streamwish") res = await resolveStreamwish(payload.link);
-        else if (sName === "vidhide") res = await resolveVidhide(payload.link);
-
-        if (res) {
-          const item = { name: `Embed69 - ${embed.servername}`, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
-          if (typeof __yield_result === "function") { try { __yield_result(JSON.stringify(item)); } catch (e) { } }
-          return item;
-        }
-      } catch (e) {
-        console.log(`[Embed69] Error en ${embed.servername}: ${e.message}`);
-      }
-      return null;
+    const embedsToResolve = lat.sortedEmbeds.filter(e => e.link && e.servername !== "download").map(embed => {
+      const b64 = embed.link.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      const payload = JSON.parse(safeAtob(b64));
+      return { server: embed.servername.toLowerCase(), url: payload.link };
     });
 
-    const results = await Promise.all(resolvePromises);
-    const finalResults = results.filter(r => r !== null);
-    console.log(`[Embed69] Búsqueda finalizada con ${finalResults.length} resultados.`);
-    return finalResults;
+    console.log(`[Embed69] Resolviendo ${embedsToResolve.length} servidores de forma nativa... 🚀`);
+
+    if (typeof __native_batch_resolve === "function") {
+      try {
+        __native_batch_resolve(JSON.stringify(embedsToResolve));
+        console.log("[Embed69] Resolución nativa multihilo completada.");
+        return []; 
+      } catch (e) {
+        console.log(`[Embed69] Error en Resolución Nativa: ${e.message}. Cayendo a modo estándar.`);
+      }
+    }
+
+    const results = [];
+    for (const embed of embedsToResolve) {
+      try {
+        const sName = embed.server;
+        let res = null;
+        if (sName === "filemoon") res = await resolveFilemoon(embed.url);
+        else if (sName === "voe") res = await resolveVoe(embed.url);
+        else if (sName === "streamwish") res = await resolveStreamwish(embed.url);
+        else if (sName === "vidhide") res = await resolveVidhide(embed.url);
+
+        if (res) {
+          const item = { name: `Embed69 - ${sName}`, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
+          if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
+          results.push(item);
+        }
+      } catch (e) { }
+    }
+    return results;
   } catch (e) {
     console.log(`[Embed69] Error Crítico: ${e.message}`);
     return [];
