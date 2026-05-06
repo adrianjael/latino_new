@@ -175,7 +175,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
             return withTimeout((async () => {
                 try {
                     const b64 = embed.link.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-                    const payload = JSON.parse(atob(b64));
+                    const payload = JSON.parse(safeAtob(b64));
                     const sName = embed.servername.toLowerCase();
                     let res = null;
                     if (sName === "filemoon") res = await resolveFilemoon(payload.link);
@@ -186,7 +186,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
                     if (res) return { name: `Embed69 - ${embed.servername}`, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
                 } catch (e) {}
                 return null;
-            })(), 5500); // 5.5 segundos máximo por servidor
+            })(), 10000); // 10 segundos máximo por servidor para mayor estabilidad
         });
 
         const results = await Promise.all(resolvePromises);
