@@ -136,22 +136,36 @@ async function resolveVidhide(url) {
 
 async function getStreams(tmdbId, mediaType, season, episode) {
   try {
-    // Normalización y Limpieza de ID (Lógica v1.3.0)
-    let cleanId = String(tmdbId).trim()
-      .replace(/^tmdb:/, "").replace(/^series:/, "").replace(/^movie:/, "")
+    // Modo Nitro: Detectar si la App envió el "Súper ID" (tmdb|imdb)
+    let cleanId = String(tmdbId).trim();
+    let imdbId = null;
+
+    if (cleanId.includes("|")) {
+      const parts = cleanId.split("|");
+      cleanId = parts[0];
+      if (parts[1] && parts[1].startsWith("tt")) {
+        imdbId = parts[1];
+        console.log(`[Embed69] Modo Nitro: Usando IMDB ID directo: ${imdbId}`);
+      }
+    }
+
+    // Normalización estándar si no hay IMDB ID directo
+    cleanId = cleanId.replace(/^tmdb:/, "").replace(/^series:/, "").replace(/^movie:/, "")
       .split(":")[0].split("/")[0];
 
     const type = ["movie", "film"].includes(String(mediaType).toLowerCase()) ? "movie" : "tv";
     console.log(`[Embed69] Buscando: ${type} | ID:${cleanId} | S:${season} E:${episode}`);
 
-    let imdbId = cleanId.startsWith("tt") ? cleanId : null;
     if (!imdbId) {
-      try {
-        const res0 = await fetch(`https://api.themoviedb.org/3/${type}/${cleanId}/external_ids?api_key=439c478a771f35c05022f9feabcca01c`);
-        const tmdbData = await res0.json();
-        imdbId = tmdbData.imdb_id;
-      } catch (e) {
-        console.log(`[Embed69] Error TMDB: ${e.message}`);
+      imdbId = cleanId.startsWith("tt") ? cleanId : null;
+      if (!imdbId) {
+        try {
+          const res0 = await fetch(`https://api.themoviedb.org/3/${type}/${cleanId}/external_ids?api_key=439c478a771f35c05022f9feabcca01c`);
+          const tmdbData = await res0.json();
+          imdbId = tmdbData.imdb_id;
+        } catch (e) {
+          console.log(`[Embed69] Error TMDB: ${e.message}`);
+        }
       }
     }
 
