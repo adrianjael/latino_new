@@ -647,6 +647,10 @@ var require_filemoon = __commonJS({
           }
           
           const decryptedData = JSON.parse(decryptedJsonStr);
+          if (decryptedData.error) {
+              console.error(`[Resolvers] Error AES Kotlin: ${decryptedData.error}`);
+              return null;
+          }
           const sourceUrl = decryptedData.sources[0].url;
           
           console.log(`[Resolvers] Filemoon Success!`);
