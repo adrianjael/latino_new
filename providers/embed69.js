@@ -195,7 +195,14 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         else if (sName === "streamwish") res = await resolveStreamwish(payload.link);
         else if (sName === "vidhide") res = await resolveVidhide(payload.link);
 
-        if (res) return { name: `Embed69 - ${embed.servername}`, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
+        if (res) {
+          const item = { name: `Embed69 - ${embed.servername}`, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
+          // Enviar resultado en tiempo real a la App (Carga Progresiva)
+          if (typeof __yield_result === "function") {
+            try { __yield_result(JSON.stringify(item)); } catch (e) { }
+          }
+          return item;
+        }
       } catch (e) {
         console.log(`[Embed69] Error en ${embed.servername}: ${e.message}`);
       }
@@ -204,7 +211,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
 
     const results = await Promise.all(resolvePromises);
     const finalResults = results.filter(r => r !== null);
-    console.log(`[Embed69] Total Final: ${finalResults.length} resultados.`);
+    console.log(`[Embed69] Búsqueda finalizada con ${finalResults.length} resultados.`);
     return finalResults;
   } catch (e) {
     console.log(`[Embed69] Error Crítico: ${e.message}`);
