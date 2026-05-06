@@ -225,12 +225,9 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         try {
           globalThis.fetch = async (url, opts) => {
             const urlStr = typeof url === 'string' ? url : url.toString();
-            // Búsqueda inteligente en caché (por URL exacta o por ID de vídeo)
-            const videoId = urlStr.split('/').pop()?.split('?')[0];
-            const cachedKey = Object.keys(_htmlCache).find(k => k === urlStr || (videoId && k.includes(videoId)));
-            
-            if (cachedKey) {
-              const cachedHtml = _htmlCache[cachedKey];
+            // Solo interceptar si es una URL de embed original (evitamos romper APIs)
+            if (_htmlCache[urlStr]) {
+              const cachedHtml = _htmlCache[urlStr];
               return {
                 ok: true, status: 200,
                 text: async () => cachedHtml,

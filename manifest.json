@@ -1,13 +1,13 @@
 {
     "name": "Latino - AdrianJael",
-    "version": "1.9.0",
+    "version": "1.9.1",
     "description": "Contenido exclusivo en Español Latino para NuvioMobile",
     "scrapers": [
         {
             "id": "embed69",
             "name": "Embed69",
-            "description": "Latino - Rock Solid 1.9.0: Velocidad + Estabilidad 🚀🦾",
-            "version": "1.9.0",
+            "description": "Latino - Rock Solid 1.9.1: Fix APIs (Filemoon) 🚀🦾",
+            "version": "1.9.1",
             "author": "AdrianJael",
             "supportedTypes": [
                 "movie",
