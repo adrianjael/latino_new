@@ -136,50 +136,61 @@ async function resolveVidhide(url) {
 
 async function getStreams(tmdbId, mediaType, season, episode) {
     try {
-        const type = String(mediaType).includes("movie") ? "movie" : "tv";
-        console.log(`[Embed69] Buscando ${type}: ${tmdbId} (S:${season} E:${episode})`);
+        // Normalización y Limpieza de ID
+        let cleanId = String(tmdbId).trim()
+            .replace(/^tmdb:/, "").replace(/^series:/, "").replace(/^movie:/, "")
+            .split(":")[0].split("/")[0];
         
-        let imdbId = String(tmdbId).startsWith("tt") ? tmdbId : null;
+        const type = ["movie", "film"].includes(String(mediaType).toLowerCase()) ? "movie" : "tv";
+        console.log(`[Embed69] Inyectando: ${type} | ID:${cleanId} | S:${season} E:${episode}`);
+        
+        let imdbId = cleanId.startsWith("tt") ? cleanId : null;
         if (!imdbId) {
+            console.log(`[Embed69] Consultando TMDB para obtener IMDB ID de ${cleanId}...`);
             try {
-                const res0 = await fetch(`https://api.themoviedb.org/3/${type}/${tmdbId}/external_ids?api_key=439c478a771f35c05022f9feabcca01c`);
+                const res0 = await fetch(`https://api.themoviedb.org/3/${type}/${cleanId}/external_ids?api_key=439c478a771f35c05022f9feabcca01c`);
                 const tmdbData = await res0.json();
                 imdbId = tmdbData.imdb_id;
             } catch (e) {
-                console.log(`[Embed69] Error TMDB: ${e.message}`);
+                console.log(`[Embed69] Error en API TMDB: ${e.message}`);
             }
         }
         
         if (!imdbId) {
-            console.log(`[Embed69] No se pudo obtener IMDB ID`);
+            console.log(`[Embed69] Bloqueo: No se pudo obtener IMDB ID.`);
             return [];
         }
 
         const urlId = (type === "tv" && season) ? `${imdbId}-${season}x${String(episode).padStart(2, "0")}` : imdbId;
         const targetUrl = `https://embed69.org/f/${urlId}`;
-        console.log(`[Embed69] URL Objetivo: ${targetUrl}`);
+        console.log(`[Embed69] Navegando a: ${targetUrl}`);
 
-        const html = await (await fetch(targetUrl, { headers: { "User-Agent": UA } })).text();
+        const response = await fetch(targetUrl, { headers: { "User-Agent": UA } });
+        const html = await response.text();
         const match = html.match(/dataLink\s*=\s*([\[\{][\s\S]*?[\]\}]);/);
         
         if (!match) {
-            console.log(`[Embed69] No se encontró dataLink en el HTML`);
+            console.log(`[Embed69] Bloqueo: No se encontró dataLink en la página.`);
             return [];
         }
         
         let data = JSON.parse(match[1]);
-        if (!Array.isArray(data)) data = Object.keys(data).map(k => ({ video_language: k, sortedEmbeds: data[k] }));
+        // Normalizar formato de dataLink (Array u Objeto)
+        if (!Array.isArray(data)) {
+            data = Object.keys(data).map(k => ({ video_language: k, sortedEmbeds: data[k] }));
+        }
         
-        const lat = data.find(i => i.video_language === "LAT");
+        const lat = data.find(i => ["LAT", "LATINO"].includes(String(i.video_language).toUpperCase()));
         if (!lat) {
-            console.log(`[Embed69] No hay enlaces en Latino (LAT)`);
+            console.log(`[Embed69] Bloqueo: Sin fuentes en Latino (LAT/LATINO).`);
             return [];
         }
 
-        console.log(`[Embed69] Encontrados ${lat.sortedEmbeds.length} embeds en Latino`);
+        console.log(`[Embed69] Éxito: Encontrados ${lat.sortedEmbeds.length} servidores.`);
         const resolvePromises = lat.sortedEmbeds.filter(e => e.link && e.servername !== "download").map(async (embed) => {
             try {
-                const payload = JSON.parse(atob(embed.link.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+                const b64 = embed.link.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+                const payload = JSON.parse(atob(b64));
                 const sName = embed.servername.toLowerCase();
                 let res = null;
                 if (sName === "filemoon") res = await resolveFilemoon(payload.link);
@@ -189,14 +200,14 @@ async function getStreams(tmdbId, mediaType, season, episode) {
                 
                 if (res) return { name: `Embed69 - ${embed.servername}`, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
             } catch (e) {
-                console.log(`[Embed69] Error Resolviendo ${embed.servername}: ${e.message}`);
+                console.log(`[Embed69] Error en ${embed.servername}: ${e.message}`);
             }
             return null;
         });
 
         const results = await Promise.all(resolvePromises);
         const finalResults = results.filter(r => r !== null);
-        console.log(`[Embed69] Total Final: ${finalResults.length} enlaces`);
+        console.log(`[Embed69] Total Final: ${finalResults.length} resultados listos.`);
         return finalResults;
     } catch (e) { 
         console.log(`[Embed69] Error Crítico: ${e.message}`);
