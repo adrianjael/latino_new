@@ -136,22 +136,47 @@ async function resolveVidhide(url) {
 
 async function getStreams(tmdbId, mediaType, season, episode) {
     try {
-        const type = mediaType.includes("movie") ? "movie" : "tv";
-        const res0 = await fetch(`https://api.themoviedb.org/3/${type}/${tmdbId}/external_ids?api_key=439c478a771f35c05022f9feabcca01c`);
-        const tmdbData = await res0.json();
-        const imdbId = tmdbData.imdb_id;
-        if (!imdbId) return [];
+        const type = String(mediaType).includes("movie") ? "movie" : "tv";
+        console.log(`[Embed69] Buscando ${type}: ${tmdbId} (S:${season} E:${episode})`);
+        
+        let imdbId = String(tmdbId).startsWith("tt") ? tmdbId : null;
+        if (!imdbId) {
+            try {
+                const res0 = await fetch(`https://api.themoviedb.org/3/${type}/${tmdbId}/external_ids?api_key=439c478a771f35c05022f9feabcca01c`);
+                const tmdbData = await res0.json();
+                imdbId = tmdbData.imdb_id;
+            } catch (e) {
+                console.log(`[Embed69] Error TMDB: ${e.message}`);
+            }
+        }
+        
+        if (!imdbId) {
+            console.log(`[Embed69] No se pudo obtener IMDB ID`);
+            return [];
+        }
 
-        const urlId = (mediaType === "tv" && season) ? `${imdbId}-${season}x${String(episode).padStart(2, "0")}` : imdbId;
-        const html = await (await fetch(`https://embed69.org/f/${urlId}`, { headers: { "User-Agent": UA } })).text();
+        const urlId = (type === "tv" && season) ? `${imdbId}-${season}x${String(episode).padStart(2, "0")}` : imdbId;
+        const targetUrl = `https://embed69.org/f/${urlId}`;
+        console.log(`[Embed69] URL Objetivo: ${targetUrl}`);
+
+        const html = await (await fetch(targetUrl, { headers: { "User-Agent": UA } })).text();
         const match = html.match(/dataLink\s*=\s*([\[\{][\s\S]*?[\]\}]);/);
-        if (!match) return [];
+        
+        if (!match) {
+            console.log(`[Embed69] No se encontró dataLink en el HTML`);
+            return [];
+        }
         
         let data = JSON.parse(match[1]);
         if (!Array.isArray(data)) data = Object.keys(data).map(k => ({ video_language: k, sortedEmbeds: data[k] }));
+        
         const lat = data.find(i => i.video_language === "LAT");
-        if (!lat) return [];
+        if (!lat) {
+            console.log(`[Embed69] No hay enlaces en Latino (LAT)`);
+            return [];
+        }
 
+        console.log(`[Embed69] Encontrados ${lat.sortedEmbeds.length} embeds en Latino`);
         const resolvePromises = lat.sortedEmbeds.filter(e => e.link && e.servername !== "download").map(async (embed) => {
             try {
                 const payload = JSON.parse(atob(embed.link.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
@@ -163,13 +188,20 @@ async function getStreams(tmdbId, mediaType, season, episode) {
                 else if (sName === "vidhide") res = await resolveVidhide(payload.link);
                 
                 if (res) return { name: `Embed69 - ${embed.servername}`, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
-            } catch (e) {}
+            } catch (e) {
+                console.log(`[Embed69] Error Resolviendo ${embed.servername}: ${e.message}`);
+            }
             return null;
         });
 
         const results = await Promise.all(resolvePromises);
-        return results.filter(r => r !== null);
-    } catch (e) { return []; }
+        const finalResults = results.filter(r => r !== null);
+        console.log(`[Embed69] Total Final: ${finalResults.length} enlaces`);
+        return finalResults;
+    } catch (e) { 
+        console.log(`[Embed69] Error Crítico: ${e.message}`);
+        return []; 
+    }
 }
 
 module.exports = { getStreams };
