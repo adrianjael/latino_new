@@ -1,74 +1,47 @@
 {
     "name": "Latino - AdrianJael",
-    "version": "1.3.1",
-    "description": "Contenido exclusivo en Español Latino para NuvioMobile",
+    "version": "1.4.0",
+    "description": "Contenido exclusivo con Carga Progresiva (Cascada)",
     "scrapers": [
         {
-            "id": "embed69",
-            "name": "Embed69",
-            "description": "Latino - Calidad Real con check ✅",
-            "version": "1.6.1",
+            "id": "embed69_vh",
+            "name": "Embed69 - VidHide",
+            "description": "Carga ultra rápida ⚡",
+            "version": "1.7.0",
             "author": "AdrianJael",
-            "supportedTypes": [
-                "movie",
-                "tv"
-            ],
-            "filename": "providers/embed69.js",
-            "enabled": true,
-            "logo": "https://play-lh.googleusercontent.com/5oy8Mdjfj1sEzBWe5WxuQ_8MqFRC6Yu-PM2c4QkXEN_isAQvqrWeMwZV7z3__lDm8Q",
-            "contentLanguage": [
-                "es"
-            ]
+            "supportedTypes": ["movie", "tv"],
+            "filename": "providers/embed69_vidhide.js",
+            "enabled": true
         },
         {
-            "id": "sololatino",
-            "name": "SoloLatino",
-            "description": "Latino - Servidores rápidos (Voe, Filemoon)",
-            "version": "1.1.2",
+            "id": "embed69_sw",
+            "name": "Embed69 - Streamwish",
+            "description": "Carga rápida 🚀",
+            "version": "1.7.0",
             "author": "AdrianJael",
-            "supportedTypes": [
-                "movie",
-                "tv"
-            ],
-            "filename": "providers/sololatino.js",
-            "enabled": true,
-            "logo": "https://sololatino.net/favicon.ico",
-            "contentLanguage": [
-                "es"
-            ]
+            "supportedTypes": ["movie", "tv"],
+            "filename": "providers/embed69_streamwish.js",
+            "enabled": true
         },
         {
-            "id": "cinecalidad",
-            "name": "CineCalidad",
-            "description": "Películas Latino - Alta Calidad",
-            "version": "1.0.9",
+            "id": "embed69_fm",
+            "name": "Embed69 - Filemoon",
+            "description": "Calidad Real 1080p ✅",
+            "version": "1.7.0",
             "author": "AdrianJael",
-            "supportedTypes": [
-                "movie"
-            ],
-            "filename": "providers/cinecalidad.js",
-            "enabled": true,
-            "logo": "https://www.cinecalidad.vg/favicon.ico",
-            "contentLanguage": [
-                "es"
-            ]
+            "supportedTypes": ["movie", "tv"],
+            "filename": "providers/embed69_filemoon.js",
+            "enabled": true
         },
         {
-            "id": "cinehdplus",
-            "name": "CineHDPlus",
-            "description": "Buscador extra de películas y series",
-            "version": "1.0.0",
+            "id": "embed69_voe",
+            "name": "Embed69 - VOE",
+            "description": "Servidor estable 🛡️",
+            "version": "1.7.0",
             "author": "AdrianJael",
-            "supportedTypes": [
-                "movie",
-                "tv"
-            ],
-            "filename": "providers/cinehdplus.js",
-            "enabled": true,
-            "logo": "https://cinehdplus.com/favicon.ico",
-            "contentLanguage": [
-                "es"
-            ]
+            "supportedTypes": ["movie", "tv"],
+            "filename": "providers/embed69_voe.js",
+            "enabled": true
         }
     ]
 }
