@@ -1,13 +1,13 @@
 {
     "name": "Latino - AdrianJael",
-    "version": "1.8.1",
+    "version": "1.9.5",
     "description": "Contenido exclusivo en Español Latino para NuvioMobile",
     "scrapers": [
         {
             "id": "embed69",
             "name": "Embed69",
-            "description": "Latino - Turbo Nitro: Resultados instantáneos 🚀💨",
-            "version": "1.8.1",
+            "description": "Latino - Nitro Sync 1.9.5: Velocidad Total 🚀💨",
+            "version": "1.9.5",
             "author": "AdrianJael",
             "supportedTypes": [
                 "movie",

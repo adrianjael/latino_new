@@ -218,28 +218,42 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         const htmlMap = {};
         for (const r of htmlResults) htmlMap[r.url] = r;
 
-        const parallelResults = await Promise.all(embedsToResolve.map(async embed => {
-          const sName = embed.server;
-          const fetched = htmlMap[embed.url];
-          if (!fetched || !fetched.ok || !fetched.html) return null;
+        // Nitro Player Sync: Procesamos en paralelo pero con estrategia de retorno dual
+        const results = [];
+        const fastPromises = embedsToResolve.map(async embed => {
           try {
+            const sName = embed.server;
+            const fetched = htmlMap[embed.url];
+            if (!fetched || !fetched.ok || !fetched.html) return;
+            
             let res = null;
             if (sName === "filemoon") res = await resolveFilemoon(embed.url);
             else if (sName === "voe") res = await resolveVoe(embed.url);
             else if (sName === "streamwish") res = await resolveStreamwish(embed.url);
             else if (sName === "vidhide") res = await resolveVidhide(embed.url);
+
             if (res) {
               const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
+              results.push(item);
+              // Yield inmediato para la pantalla de inicio
               if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
-              return item;
             }
           } catch (e) { }
-          return null;
-        }));
+        });
 
-        const filtered = parallelResults.filter(Boolean);
-        return filtered;
-      } catch (e) { }
+        // TRUCO NITRO: El reproductor espera el 'return'.
+        // Si en 3 segundos tenemos resultados rápidos, retornamos ya para que el reproductor los muestre.
+        // Filemoon seguirá enviando su resultado por __yield_result si tarda más.
+        await Promise.race([
+          Promise.all(fastPromises),
+          new Promise(resolve => setTimeout(resolve, 3000))
+        ]);
+
+        console.log(`[Embed69] Retorno Nitro: Enviando ${results.length} resultados iniciales.`);
+        return results;
+      } catch (e) {
+        console.log(`[Embed69] Error Batch: ${e.message}`);
+      }
     }
 
     // Fallback secuencial si no hay motor nativo
