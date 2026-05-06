@@ -511,7 +511,10 @@ var require_filemoon = __commonJS({
           // 1. Details
           const detailsUrl = `${currentDomain}/api/videos/${videoId}/embed/details`;
           let res = yield fetch(detailsUrl, { headers: { "User-Agent": USER_AGENT } });
-          if (!res.ok) return null;
+          if (!res.ok) {
+              console.error(`[Resolvers] Filemoon fallo en 1. Details: HTTP ${res.status}`);
+              return null;
+          }
           let data = yield res.json();
           const embedFrameUrl = data.embed_frame_url;
           const playbackDomain = new URL(embedFrameUrl).origin;
@@ -522,7 +525,10 @@ var require_filemoon = __commonJS({
               method: 'POST',
               headers: { "Referer": embedFrameUrl, "Origin": playbackDomain, "User-Agent": USER_AGENT }
           });
-          if (!res.ok) return null;
+          if (!res.ok) {
+              console.error(`[Resolvers] Filemoon fallo en 2. Challenge: HTTP ${res.status}`);
+              return null;
+          }
           const challenge = yield res.json();
           
           const uuidv4 = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -586,7 +592,10 @@ var require_filemoon = __commonJS({
               body: JSON.stringify(attestPayload)
           });
           
-          if (!res.ok) return null;
+          if (!res.ok) {
+              console.error(`[Resolvers] Filemoon fallo en 3. Attest: HTTP ${res.status} - Body: ${yield res.text()}`);
+              return null;
+          }
           const attestRes = yield res.json();
 
           // 4. Playback
@@ -610,7 +619,10 @@ var require_filemoon = __commonJS({
               })
           });
           
-          if (!res.ok) return null;
+          if (!res.ok) {
+              console.error(`[Resolvers] Filemoon fallo en 4. Playback: HTTP ${res.status} - Body: ${yield res.text()}`);
+              return null;
+          }
           const playbackRes = yield res.json();
           const pb = playbackRes.playback;
           
@@ -625,11 +637,14 @@ var require_filemoon = __commonJS({
                   );
               }
           } catch(e) {
-              console.error(`[Resolvers] Error desencriptando AES nativo.`);
+              console.error(`[Resolvers] Error desencriptando AES nativo: ${e.message}`);
               return null;
           }
 
-          if (!decryptedJsonStr) return null;
+          if (!decryptedJsonStr) {
+              console.error(`[Resolvers] AES desencripto cadena vacia.`);
+              return null;
+          }
           
           const decryptedData = JSON.parse(decryptedJsonStr);
           const sourceUrl = decryptedData.sources[0].url;
