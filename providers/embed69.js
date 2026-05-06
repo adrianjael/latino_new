@@ -224,9 +224,13 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         const _originalFetch = globalThis.fetch;
         try {
           globalThis.fetch = async (url, opts) => {
-            const key = typeof url === 'string' ? url : url.toString();
-            if (_htmlCache[key]) {
-              const cachedHtml = _htmlCache[key];
+            const urlStr = typeof url === 'string' ? url : url.toString();
+            // Búsqueda inteligente en caché (por URL exacta o por ID de vídeo)
+            const videoId = urlStr.split('/').pop()?.split('?')[0];
+            const cachedKey = Object.keys(_htmlCache).find(k => k === urlStr || (videoId && k.includes(videoId)));
+            
+            if (cachedKey) {
+              const cachedHtml = _htmlCache[cachedKey];
               return {
                 ok: true, status: 200,
                 text: async () => cachedHtml,
@@ -237,14 +241,16 @@ async function getStreams(tmdbId, mediaType, season, episode) {
             return _originalFetch(url, opts);
           };
 
-          const parallelPromises = embedsToResolve.map(async embed => {
-            const sName = embed.server;
+          // Procesar todos en paralelo
+          const parallelResults = await Promise.all(embedsToResolve.map(async embed => {
             try {
+              const sName = embed.server;
               let res = null;
               if (sName === "filemoon") res = await resolveFilemoon(embed.url);
               else if (sName === "voe") res = await resolveVoe(embed.url);
               else if (sName === "streamwish") res = await resolveStreamwish(embed.url);
               else if (sName === "vidhide") res = await resolveVidhide(embed.url);
+              
               if (res) {
                 const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
                 if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
@@ -252,15 +258,9 @@ async function getStreams(tmdbId, mediaType, season, episode) {
               }
             } catch (e) { }
             return null;
-          });
+          }));
 
-          // TRUCO NITRO: Si en 2.5 segundos tenemos resultados, retornamos la lista parcial.
-          const fastResults = await Promise.race([
-            Promise.all(parallelPromises),
-            new Promise(resolve => setTimeout(() => resolve(null), 2500))
-          ]);
-
-          return fastResults ? fastResults.filter(Boolean) : [];
+          return parallelResults.filter(Boolean);
         } finally {
           globalThis.fetch = _originalFetch;
         }
