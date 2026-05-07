@@ -231,58 +231,66 @@ async function getStreams(tmdbId, mediaType, season, episode) {
       return { server: embed.servername.toLowerCase(), url: payload.link };
     });
 
-    console.log(`[Embed69] Servidores detectados: ${embedsToResolve.map(e => e.server).join(", ")}`);
-    console.log(`[Embed69] Resolviendo ${embedsToResolve.length} servidores en paralelo... 🚀`);
+    console.log(`[Embed69] Iniciando resolución paralela Nitro 2.0...`);
+    const embedsToResolve = lat.sortedEmbeds.filter(e => e.link && e.servername !== "download").map(embed => {
+      const b64 = embed.link.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      const payload = JSON.parse(safeAtob(b64));
+      return { server: embed.servername.toLowerCase(), url: payload.link };
+    });
 
-    // Si el motor nativo está disponible, pre-descargamos los HTMLs
+    console.log(`[Embed69] Servidores encontrados: ${embedsToResolve.map(e => e.server).join(", ")}`);
+
+    const _htmlCache = {};
     if (typeof __native_batch_fetch === "function") {
       try {
         const requests = embedsToResolve.map(e => ({ url: e.url }));
         const rawJson = __native_batch_fetch(JSON.stringify(requests));
         const htmlResults = JSON.parse(rawJson);
-        const _htmlCache = {};
-        for (const r of htmlResults) {
-          if (r.ok && r.html) _htmlCache[r.url] = r.html;
-        }
+        for (const r of htmlResults) { if (r.ok && r.html) _htmlCache[r.url] = r.html; }
+      } catch (e) { console.log(`[Embed69] Error en batch: ${e.message}`); }
+    }
 
-        // Interceptar fetch para usar caché
-        const _originalFetch = globalThis.fetch;
-        globalThis.fetch = async (url, opts) => {
-          const key = typeof url === 'string' ? url : url.toString();
-          if (_htmlCache[key]) {
-            return {
-              ok: true, status: 200,
-              text: async () => _htmlCache[key],
-              json: async () => JSON.parse(_htmlCache[key]),
-              headers: { get: (n) => n.toLowerCase() === 'content-type' ? 'text/html' : null }
-            };
-          }
-          return _originalFetch(url, opts);
+    // Interceptar fetch para usar caché si existe
+    const _originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url, opts) => {
+      const key = typeof url === 'string' ? url : url.toString();
+      if (_htmlCache[key]) {
+        return {
+          ok: true, status: 200,
+          text: async () => _htmlCache[key],
+          json: async () => JSON.parse(_htmlCache[key]),
+          headers: { get: (n) => n.toLowerCase() === 'content-type' ? 'text/html' : null }
         };
+      }
+      return _originalFetch(url, opts);
+    };
 
-        const parallelResults = await Promise.all(embedsToResolve.map(async embed => {
-          const sName = embed.server;
-          try {
-            let res = null;
-            if (sName === "filemoon") res = await resolveFilemoon(embed.url);
-            else if (sName === "voe") res = await resolveVoe(embed.url);
-            else if (sName === "streamwish") res = await resolveStreamwish(embed.url);
-            else if (sName === "vidhide") res = await resolveVidhide(embed.url);
-            
-            if (res) {
-              const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
-              if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
-              return item;
-            }
-          } catch (e) {
-            console.log(`[Embed69] Error en ${sName}: ${e.message}`);
-          }
-          return null;
-        }));
+    const parallelResults = await Promise.all(embedsToResolve.map(async embed => {
+      const sName = embed.server;
+      try {
+        let res = null;
+        if (sName === "filemoon") {
+           console.log("[Embed69] Intentando Filemoon...");
+           res = await resolveFilemoon(embed.url);
+        }
+        else if (sName === "voe") res = await resolveVoe(embed.url);
+        else if (sName === "streamwish") res = await resolveStreamwish(embed.url);
+        else if (sName === "vidhide") res = await resolveVidhide(embed.url);
+        
+        if (res) {
+          const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
+          if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
+          return item;
+        }
+      } catch (e) {
+        console.log(`[Embed69] Fallo en ${sName}: ${e.message}`);
+      }
+      return null;
+    }));
 
-        const finalResults = parallelResults.filter(Boolean);
-        console.log(`[Embed69] Resolución nativa completada: ${finalResults.length} resultados.`);
-        return finalResults;
+    const finalResults = parallelResults.filter(Boolean);
+    console.log(`[Embed69] Finalizado con ${finalResults.length} resultados.`);
+    return finalResults;
       } catch (e) {
         console.log(`[Embed69] Error en batch nativo: ${e.message}. Cayendo a modo estándar.`);
       }
