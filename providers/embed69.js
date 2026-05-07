@@ -226,13 +226,25 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     }
 
     console.log(`[Embed69] Iniciando resolución paralela Nitro 2.0...`);
-    const embedsToResolve = lat.sortedEmbeds.filter(e => e.link && e.servername !== "download").map(embed => {
+
+    // Mostrar los nombres EXACTOS que nos da embed69 (sin procesar)
+    const rawServers = lat.sortedEmbeds.filter(e => e.link && e.servername !== "download");
+    console.log(`[Embed69] *** SERVIDORES RAW de embed69: ${rawServers.map(e => `"${e.servername}"`).join(", ")} ***`);
+
+    const embedsToResolve = rawServers.map(embed => {
       const b64 = embed.link.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
       const payload = JSON.parse(safeAtob(b64));
       return { server: embed.servername.toLowerCase(), url: payload.link };
     });
 
-    console.log(`[Embed69] Servidores encontrados: ${embedsToResolve.map(e => e.server).join(", ")}`);
+    const hasFilemoon = embedsToResolve.some(e => e.server.includes("filemoon") || e.server.includes("moon"));
+    if (!hasFilemoon) {
+      console.log(`[Embed69] ⚠️ FILEMOON NO ESTÁ en la lista de servidores para este contenido.`);
+    } else {
+      console.log(`[Embed69] ✅ Filemoon encontrado, intentando resolver...`);
+    }
+
+    console.log(`[Embed69] Servidores a resolver: ${embedsToResolve.map(e => e.server).join(", ")}`);
 
     const _htmlCache = {};
     if (typeof __native_batch_fetch === "function") {

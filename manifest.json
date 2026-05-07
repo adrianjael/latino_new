@@ -1,13 +1,13 @@
 {
     "name": "Latino - AdrianJael",
-    "version": "2.0.1",
+    "version": "2.0.2",
     "description": "Contenido exclusivo en Español Latino para NuvioMobile",
     "scrapers": [
         {
             "id": "embed69",
             "name": "Embed69",
-            "description": "Nitro 2.0.1: Filemoon Fix Verificado + Lógica ECDSA Probada ✅",
-            "version": "2.0.1",
+            "description": "Nitro 2.0.2: Logs de diagnóstico Filemoon mejorados 🔍",
+            "version": "2.0.2",
             "author": "AdrianJael",
             "supportedTypes": [
                 "movie",
