@@ -1,13 +1,13 @@
 {
     "name": "Latino - AdrianJael",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "Contenido exclusivo en Español Latino para NuvioMobile",
     "scrapers": [
         {
             "id": "embed69",
             "name": "Embed69",
-            "description": "Latino - Nitro 2.0: Velocidad Extrema + Filemoon Fix 🚀🌕",
-            "version": "2.0.0",
+            "description": "Nitro 2.0.1: Filemoon Fix Verificado + Lógica ECDSA Probada ✅",
+            "version": "2.0.1",
             "author": "AdrianJael",
             "supportedTypes": [
                 "movie",

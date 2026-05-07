@@ -1,6 +1,6 @@
 /**
- * Embed69 Provider - Nuvio Next-Gen (v1.2.7)
- * FINAL CORE: Parallel Speed + Legacy Accuracy + Native Bypass
+ * Embed69 Provider - Nuvio Next-Gen (v2.0.1)
+ * Nitro 2.0: Parallel Speed + Filemoon Fix + ECDSA Attestation
  */
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36";
@@ -225,12 +225,6 @@ async function getStreams(tmdbId, mediaType, season, episode) {
       return [];
     }
 
-    const embedsToResolve = lat.sortedEmbeds.filter(e => e.link && e.servername !== "download").map(embed => {
-      const b64 = embed.link.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-      const payload = JSON.parse(safeAtob(b64));
-      return { server: embed.servername.toLowerCase(), url: payload.link };
-    });
-
     console.log(`[Embed69] Iniciando resolución paralela Nitro 2.0...`);
     const embedsToResolve = lat.sortedEmbeds.filter(e => e.link && e.servername !== "download").map(embed => {
       const b64 = embed.link.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
@@ -291,30 +285,6 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     const finalResults = parallelResults.filter(Boolean);
     console.log(`[Embed69] Finalizado con ${finalResults.length} resultados.`);
     return finalResults;
-      } catch (e) {
-        console.log(`[Embed69] Error en batch nativo: ${e.message}. Cayendo a modo estándar.`);
-      }
-    }
-
-    // Fallback secuencial si no hay motor nativo
-    const results = [];
-    for (const embed of embedsToResolve) {
-      try {
-        const sName = embed.server;
-        let res = null;
-        if (sName === "filemoon") res = await resolveFilemoon(embed.url);
-        else if (sName === "voe") res = await resolveVoe(embed.url);
-        else if (sName === "streamwish") res = await resolveStreamwish(embed.url);
-        else if (sName === "vidhide") res = await resolveVidhide(embed.url);
-
-        if (res) {
-          const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
-          if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
-          results.push(item);
-        }
-      } catch (e) { }
-    }
-    return results;
   } catch (e) {
     console.log(`[Embed69] Error Crítico: ${e.message}`);
     return [];
