@@ -1,6 +1,6 @@
 /**
- * Embed69 Provider - Nuvio Next-Gen (v2.0.3)
- * Nitro 2.0: Parallel Speed + Filemoon Fix + ECDSA Attestation
+ * Embed69 Provider - Nuvio Next-Gen (v2.0.4)
+ * Nitro 2.0: Instant Streaming + Filemoon Fix + ECDSA
  */
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36";
@@ -245,31 +245,6 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     }
 
     console.log(`[Embed69] Servidores a resolver: ${embedsToResolve.map(e => e.server).join(", ")}`);
-
-    const _htmlCache = {};
-    if (typeof __native_batch_fetch === "function") {
-      try {
-        const requests = embedsToResolve.map(e => ({ url: e.url }));
-        const rawJson = __native_batch_fetch(JSON.stringify(requests));
-        const htmlResults = JSON.parse(rawJson);
-        for (const r of htmlResults) { if (r.ok && r.html) _htmlCache[r.url] = r.html; }
-      } catch (e) { console.log(`[Embed69] Error en batch: ${e.message}`); }
-    }
-
-    // Interceptar fetch para usar caché si existe
-    const _originalFetch = globalThis.fetch;
-    globalThis.fetch = async (url, opts) => {
-      const key = typeof url === 'string' ? url : url.toString();
-      if (_htmlCache[key]) {
-        return {
-          ok: true, status: 200,
-          text: async () => _htmlCache[key],
-          json: async () => JSON.parse(_htmlCache[key]),
-          headers: { get: (n) => n.toLowerCase() === 'content-type' ? 'text/html' : null }
-        };
-      }
-      return _originalFetch(url, opts);
-    };
 
     const parallelResults = await Promise.all(embedsToResolve.map(async embed => {
       const sName = embed.server;
