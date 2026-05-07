@@ -1,13 +1,13 @@
 {
     "name": "Latino - AdrianJael",
-    "version": "2.0.2",
+    "version": "2.0.3",
     "description": "Contenido exclusivo en Español Latino para NuvioMobile",
     "scrapers": [
         {
             "id": "embed69",
             "name": "Embed69",
-            "description": "Nitro 2.0.2: Logs de diagnóstico Filemoon mejorados 🔍",
-            "version": "2.0.2",
+            "description": "Nitro 2.0.3: Streaming Logs + Filemoon Fix Verificado 🚀",
+            "version": "2.0.3",
             "author": "AdrianJael",
             "supportedTypes": [
                 "movie",

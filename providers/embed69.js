@@ -1,5 +1,5 @@
 /**
- * Embed69 Provider - Nuvio Next-Gen (v2.0.1)
+ * Embed69 Provider - Nuvio Next-Gen (v2.0.3)
  * Nitro 2.0: Parallel Speed + Filemoon Fix + ECDSA Attestation
  */
 
@@ -285,6 +285,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         
         if (res) {
           const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
+          console.log(`[Embed69] >> YIELDING: ${sName} (${item.quality})`);
           if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
           return item;
         }
