@@ -1,6 +1,6 @@
 /**
- * Embed69 Provider - Nuvio Next-Gen (v2.0.4)
- * Nitro 2.0: Instant Streaming + Filemoon Fix + ECDSA
+ * Embed69 Provider - Nuvio Next-Gen (v2.0.5)
+ * Nitro 2.0: Native UI Yield + Filemoon Fix + ECDSA
  */
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36";
@@ -262,6 +262,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
           const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
           console.log(`[Embed69] >> YIELDING: ${sName} (${item.quality})`);
           if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
+          if (typeof __native_sleep === "function") await __native_sleep(50);
           return item;
         }
       } catch (e) {
