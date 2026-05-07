@@ -84,19 +84,32 @@ async function resolveStreamwish(url) {
 }
 
 async function resolveFilemoon(url) {
+  console.log(`[Filemoon] Iniciando resolución: ${url}`);
   try {
     const videoId = url.split("/").pop();
     const domain = new URL(url).origin;
-    const details = await (await fetch(`${domain}/api/videos/${videoId}/embed/details`, { headers: { "User-Agent": UA } })).json();
+    
+    console.log(`[Filemoon] Pidiendo detalles para ID: ${videoId}`);
+    const detailsRes = await fetch(`${domain}/api/videos/${videoId}/embed/details`, { headers: { "User-Agent": UA } });
+    const details = await detailsRes.json();
+    
     if (details.embed_frame_url) {
+      console.log(`[Filemoon] Frame detectado: ${details.embed_frame_url}`);
       const pbDomain = new URL(details.embed_frame_url).origin;
-      const challenge = await (await fetch(`${pbDomain}/api/videos/access/challenge`, { method: 'POST', headers: { "Referer": details.embed_frame_url, "Origin": pbDomain, "User-Agent": UA } })).json();
+      
+      console.log(`[Filemoon] Pidiendo Challenge a: ${pbDomain}`);
+      const challengeRes = await fetch(`${pbDomain}/api/videos/access/challenge`, { method: 'POST', headers: { "Referer": details.embed_frame_url, "Origin": pbDomain, "User-Agent": UA } });
+      const challenge = await challengeRes.json();
+      
+      console.log(`[Filemoon] Firmando Nonce: ${challenge.nonce}`);
       const sig = typeof __crypto_ecdsa_sign_secp256r1 === "function" ? __crypto_ecdsa_sign_secp256r1(challenge.nonce) : "{}";
       const attestJson = JSON.parse(sig);
+      
       if (attestJson.signature) {
+        console.log(`[Filemoon] Enviando Attestation...`);
         const uuid = () => 'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g, c => (c == 'x' ? Math.random() * 16 | 0 : (Math.random() * 16 | 0 & 0x3 | 0x8)).toString(16));
         const vId = uuid(); const dId = uuid();
-        const attestRes = await (await fetch(`${pbDomain}/api/videos/access/attest`, {
+        const attestResObj = await (await fetch(`${pbDomain}/api/videos/access/attest`, {
           method: 'POST', headers: { "Content-Type": "application/json", "Referer": details.embed_frame_url, "Origin": pbDomain, "User-Agent": UA },
           body: JSON.stringify({
             viewer_id: vId, device_id: dId, challenge_id: challenge.challenge_id, nonce: challenge.nonce,
@@ -105,23 +118,37 @@ async function resolveFilemoon(url) {
             storage: { cookie: vId, local_storage: vId, indexed_db: `${vId}:${dId}`, cache_storage: `${vId}:${dId}` }, attributes: { entropy: "high" }
           })
         })).json();
+        
+        console.log(`[Filemoon] Pidiendo Playback...`);
         const pbRes = await (await fetch(`${pbDomain}/api/videos/${videoId}/embed/playback`, {
           method: 'POST', headers: { "Content-Type": "application/json", "Referer": details.embed_frame_url, "Origin": pbDomain, "User-Agent": UA, "X-Embed-Parent": url },
-          body: JSON.stringify({ fingerprint: { token: attestRes.token, viewer_id: attestRes.viewer_id || vId, device_id: attestRes.device_id || dId, confidence: attestRes.confidence } })
+          body: JSON.stringify({ fingerprint: { token: attestResObj.token, viewer_id: attestResObj.viewer_id || vId, device_id: attestResObj.device_id || dId, confidence: attestResObj.confidence } })
         })).json();
+        
+        console.log(`[Filemoon] Desencriptando Payload...`);
         const dec = typeof __crypto_aes_gcm_decrypt === "function" ? __crypto_aes_gcm_decrypt(JSON.stringify(pbRes.playback.key_parts), pbRes.playback.iv, pbRes.playback.payload) : "";
         if (dec && !dec.includes("error")) {
           const final = JSON.parse(dec);
+          console.log(`[Filemoon] ¡Éxito! Enlace obtenido.`);
           return { url: final.sources[0].url, quality: final.sources[0].label || "1080p", headers: { "User-Agent": UA, "Referer": domain + "/", "Origin": domain } };
+        } else {
+          console.log(`[Filemoon] Fallo en desencriptación.`);
         }
+      } else {
+        console.log(`[Filemoon] Error en firma ECDSA: ${attestJson.error || 'Desconocido'}`);
       }
     }
+    
+    console.log(`[Filemoon] Cayendo a modo estándar (Scraping HTML)...`);
     let html = await (await fetch(url, { headers: { "User-Agent": UA, "Referer": "https://embed69.org/" } })).text();
     if (html.includes("eval(function")) html += "\n" + unpack(html);
     const m3u8 = html.match(/(?:file|source|src|hls|url)\s*[:=]\s*["']([^"']+\.m3u8[^"']*)["']/i);
     if (m3u8) return { url: m3u8[1], quality: "Auto", headers: { "User-Agent": UA, "Referer": url } };
     return null;
-  } catch (e) { return null; }
+  } catch (e) { 
+    console.log(`[Filemoon] Error Crítico: ${e.message}`);
+    return null; 
+  }
 }
 
 async function resolveVidhide(url) {
@@ -204,60 +231,51 @@ async function getStreams(tmdbId, mediaType, season, episode) {
       return { server: embed.servername.toLowerCase(), url: payload.link };
     });
 
+    console.log(`[Embed69] Servidores detectados: ${embedsToResolve.map(e => e.server).join(", ")}`);
     console.log(`[Embed69] Resolviendo ${embedsToResolve.length} servidores en paralelo... 🚀`);
 
-    // Si el motor nativo está disponible, pre-descargamos todos los HTMLs a la vez
-    // y los guardamos en un caché que los resolvers usarán automáticamente
+    // Si el motor nativo está disponible, pre-descargamos los HTMLs
     if (typeof __native_batch_fetch === "function") {
       try {
         const requests = embedsToResolve.map(e => ({ url: e.url }));
         const rawJson = __native_batch_fetch(JSON.stringify(requests));
-        const htmlResults = JSON.parse(rawJson); // [{url, html, ok}, ...]
-
-        // Guardar en caché global para que el fetch interceptado lo use
+        const htmlResults = JSON.parse(rawJson);
         const _htmlCache = {};
         for (const r of htmlResults) {
           if (r.ok && r.html) _htmlCache[r.url] = r.html;
         }
 
-        // Interceptar fetch temporalmente para servir el caché pre-descargado
+        // Interceptar fetch para usar caché
         const _originalFetch = globalThis.fetch;
         globalThis.fetch = async (url, opts) => {
           const key = typeof url === 'string' ? url : url.toString();
           if (_htmlCache[key]) {
-            const cachedHtml = _htmlCache[key];
-            // Crear respuesta sintética compatible con la API fetch
             return {
               ok: true, status: 200,
-              text: async () => cachedHtml,
-              json: async () => JSON.parse(cachedHtml),
-              headers: new Map([['content-type', 'text/html']])
+              text: async () => _htmlCache[key],
+              json: async () => JSON.parse(_htmlCache[key]),
+              headers: { get: (n) => n.toLowerCase() === 'content-type' ? 'text/html' : null }
             };
           }
-          // Si no está en caché, usa el fetch real
           return _originalFetch(url, opts);
         };
 
-        // Procesar cada embed con su HTML ya descargado (en paralelo)
-        // Usamos await Promise.all para que la función NO termine antes de tiempo
         const parallelResults = await Promise.all(embedsToResolve.map(async embed => {
           const sName = embed.server;
-          const fetched = htmlMap[embed.url];
-          if (!fetched || !fetched.ok || !fetched.html) return null;
           try {
             let res = null;
-            if (sName === "filemoon") res = await resolveFilemoon(embed.url, fetched.html);
-            else if (sName === "voe") res = await resolveVoe(embed.url, fetched.html);
-            else if (sName === "streamwish") res = await resolveStreamwish(embed.url, fetched.html);
-            else if (sName === "vidhide") res = await resolveVidhide(embed.url, fetched.html);
+            if (sName === "filemoon") res = await resolveFilemoon(embed.url);
+            else if (sName === "voe") res = await resolveVoe(embed.url);
+            else if (sName === "streamwish") res = await resolveStreamwish(embed.url);
+            else if (sName === "vidhide") res = await resolveVidhide(embed.url);
+            
             if (res) {
               const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
-              // Enviamos el resultado a la App de inmediato para que aparezca en pantalla
               if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
               return item;
             }
           } catch (e) {
-            console.log(`[Embed69] Error resolviendo ${sName}: ${e.message}`);
+            console.log(`[Embed69] Error en ${sName}: ${e.message}`);
           }
           return null;
         }));
