@@ -1,6 +1,6 @@
 /**
- * Embed69 Provider - Nuvio Next-Gen (v2.0.5)
- * Nitro 2.0: Native UI Yield + Filemoon Fix + ECDSA
+ * Embed69 Provider - Nuvio Next-Gen (v2.0.6)
+ * Nitro 2.0: Sequential Yield Fix + Filemoon Fix + ECDSA
  */
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36";
@@ -246,14 +246,13 @@ async function getStreams(tmdbId, mediaType, season, episode) {
 
     console.log(`[Embed69] Servidores a resolver: ${embedsToResolve.map(e => e.server).join(", ")}`);
 
-    const parallelResults = await Promise.all(embedsToResolve.map(async embed => {
+    const results = [];
+    for (const embed of embedsToResolve) {
       const sName = embed.server;
       try {
+        console.log(`[Embed69] Intentando resolver: ${sName}...`);
         let res = null;
-        if (sName === "filemoon") {
-           console.log("[Embed69] Intentando Filemoon...");
-           res = await resolveFilemoon(embed.url);
-        }
+        if (sName === "filemoon") res = await resolveFilemoon(embed.url);
         else if (sName === "voe") res = await resolveVoe(embed.url);
         else if (sName === "streamwish") res = await resolveStreamwish(embed.url);
         else if (sName === "vidhide") res = await resolveVidhide(embed.url);
@@ -262,18 +261,17 @@ async function getStreams(tmdbId, mediaType, season, episode) {
           const item = { name: sName, language: "Latino", quality: res.quality || "HD", url: res.url, headers: res.headers };
           console.log(`[Embed69] >> YIELDING: ${sName} (${item.quality})`);
           if (typeof __yield_result === "function") __yield_result(JSON.stringify(item));
-          if (typeof __native_sleep === "function") await __native_sleep(50);
-          return item;
+          results.push(item);
+          // Pausa para que la App pinte la UI
+          if (typeof __native_sleep === "function") await __native_sleep(100);
         }
       } catch (e) {
         console.log(`[Embed69] Fallo en ${sName}: ${e.message}`);
       }
-      return null;
-    }));
+    }
 
-    const finalResults = parallelResults.filter(Boolean);
-    console.log(`[Embed69] Finalizado con ${finalResults.length} resultados.`);
-    return finalResults;
+    console.log(`[Embed69] Finalizado con ${results.length} resultados.`);
+    return results;
   } catch (e) {
     console.log(`[Embed69] Error Crítico: ${e.message}`);
     return [];

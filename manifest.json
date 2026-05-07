@@ -1,13 +1,13 @@
 {
     "name": "Latino - AdrianJael",
-    "version": "2.0.5",
+    "version": "2.0.6",
     "description": "Contenido exclusivo en Español Latino para NuvioMobile",
     "scrapers": [
         {
             "id": "embed69",
             "name": "Embed69",
-            "description": "Nitro 2.0.5: Fix de Streaming con Pausas Nativas ⚡",
-            "version": "2.0.5",
+            "description": "Nitro 2.0.6: Streaming Secuencial Real ⚡",
+            "version": "2.0.6",
             "author": "AdrianJael",
             "supportedTypes": [
                 "movie",
