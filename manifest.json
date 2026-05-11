@@ -1,7 +1,7 @@
 {
-    "name": "Latino - AdrianJael",
-    "version": "2.0.6",
-    "description": "Contenido exclusivo en Español Latino para NuvioMobile",
+    "name": "Latino - AdrianJael & Verhdlink",
+    "version": "2.1.0",
+    "description": "Contenido exclusivo en Español Latino para NuvioMobile con acceso directo IMDB",
     "scrapers": [
         {
             "id": "embed69",
@@ -54,10 +54,10 @@
             ]
         },
         {
-            "id": "cinehdplus",
-            "name": "CineHDPlus",
-            "description": "Buscador extra de películas y series",
-            "version": "1.0.0",
+            "id": "verhdlink",
+            "name": "Verhdlink (CineHD)",
+            "description": "Streaming Nitro via IMDB ID (4K/HD)",
+            "version": "3.4.0",
             "author": "AdrianJael",
             "supportedTypes": [
                 "movie",
@@ -66,6 +66,23 @@
             "filename": "providers/cinehdplus.js",
             "enabled": true,
             "logo": "https://cinehdplus.com/favicon.ico",
+            "contentLanguage": [
+                "es"
+            ]
+        },
+        {
+            "id": "cine24h",
+            "name": "Cine24h (Nitro Browser)",
+            "description": "Cloudflare Bypass ⚡ (Requiere App v2.1.0+)",
+            "version": "1.0.0",
+            "author": "AdrianJael",
+            "supportedTypes": [
+                "movie",
+                "tv"
+            ],
+            "filename": "providers/cine24h.js",
+            "enabled": true,
+            "logo": "https://i.ibb.co/kgjcsFmj/Image-1.png",
             "contentLanguage": [
                 "es"
             ]

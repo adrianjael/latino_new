@@ -766,14 +766,55 @@ var require_extractor = __commonJS({
     var resolveFilemoon = require_filemoon();
     var resolveStreamtape = require_streamtape();
     var resolveGenericPacker = require_generic_packer();
-    var baseURL = "https://cinehdplus.org";
-    var apiURL = "https://api.cinehdplus.org";
+    var baseURL = "https://cinehdplus.zone";
     var NUVIO_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+    function resolveDoodstream(url, referer) {
+      return __async(this, null, function* () {
+        try {
+          console.log(`[Resolvers] Doodstream: ${url}`);
+          const urlObj = new URL(url);
+          const domain = urlObj.hostname;
+          const response = yield fetch(url, { headers: { "User-Agent": NUVIO_UA, "Referer": referer || `https://${domain}/` } });
+          if (!response.ok) return null;
+          const html = yield response.text();
+          
+          let passMatch = html.match(/\/pass_md5\/([^'"]+)/);
+          if (!passMatch) {
+             const tokenMatch = html.match(/\?token=([^&'"]+)/);
+             if (!tokenMatch) return null;
+             passMatch = [null, tokenMatch[1]];
+          }
+          
+          const passUrl = `https://${domain}/pass_md5/${passMatch[1]}`;
+          const passRes = yield fetch(passUrl, { headers: { "User-Agent": NUVIO_UA, "Referer": url } });
+          if (!passRes.ok) return null;
+          
+          const finalToken = yield passRes.text();
+          const randomChar = "abcdefghijklmnopqrstuvwxyz0123456789";
+          let randomStr = "";
+          for (let i = 0; i < 10; i++) randomStr += randomChar.charAt(Math.floor(Math.random() * randomChar.length));
+          
+          const finalUrl = finalToken + randomStr + "?token=" + passMatch[1] + "&expiry=" + Date.now();
+          
+          console.log(`[Resolvers] Doodstream Success!`);
+          return {
+            url: finalUrl,
+            quality: "HD",
+            headers: { "User-Agent": NUVIO_UA, "Referer": `https://${domain}/` }
+          };
+        } catch (e) {
+          console.error(`[Resolvers] Error Doodstream: ${e.message}`);
+          return null;
+        }
+      });
+    }
+    var require_doodstream = () => resolveDoodstream;
+
     function getResolverForUrl(url) {
       const lower = url.toLowerCase();
       if (lower.includes("voe.sx") || lower.includes("voe."))
         return { fn: resolveVoe, name: "voe" };
-      if (lower.includes("streamwish") || lower.includes("vibuxer"))
+      if (lower.includes("streamwish") || lower.includes("vibuxer") || lower.includes("awish.pro") || lower.includes("dwish.pro") || lower.includes("dr0pstream.com"))
         return { fn: resolveStreamwish, name: "streamwish" };
       if (lower.includes("vidhide") || lower.includes("vidsrc"))
         return { fn: resolveVidhide, name: "vidhide" };
@@ -783,76 +824,18 @@ var require_extractor = __commonJS({
         return { fn: resolveStreamtape, name: "streamtape" };
       if (lower.includes("mixdrop"))
         return { fn: resolveGenericPacker, name: "mixdrop" };
+      if (lower.includes("dood.to") || lower.includes("doodstream") || lower.includes("dood.so") || lower.includes("d0000d.com") || lower.includes("ds2play.com"))
+        return { fn: resolveDoodstream, name: "doodstream" };
       return null;
-    }
-    function rot13Decode(str) {
-      return str.replace(/[a-zA-Z]/g, function(c) {
-        return String.fromCharCode(
-          (c <= "Z" ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26
-        );
-      });
-    }
-    function resolveCineHDUrl(hash, referer) {
-      return __async(this, null, function* () {
-        try {
-          const step1Url = `${apiURL}/ir/goto.php?h=${hash}`;
-          const step1Res = yield fetch(step1Url, {
-            headers: { "User-Agent": NUVIO_UA, "Referer": referer }
-          });
-          if (!step1Res.ok)
-            return null;
-          const step1Html = yield step1Res.text();
-          const $1 = cheerio.load(step1Html);
-          const form1Value = $1('input[name="url"]').attr("value");
-          if (!form1Value)
-            return null;
-          const step2Body = new URLSearchParams();
-          step2Body.append("url", form1Value);
-          const step2Res = yield fetch(`${apiURL}/ir/rd.php`, {
-            method: "POST",
-            headers: { "User-Agent": NUVIO_UA, "Referer": step1Url },
-            body: step2Body
-          });
-          const step2Html = yield step2Res.text();
-          const $2 = cheerio.load(step2Html);
-          const form2Value = $2('input[name="url"]').attr("value");
-          const form2Dl = $2('input[name="dl"]').attr("value") || "0";
-          const form2Action = $2("form#FbAns").attr("action") || "redir_ddh.php";
-          if (!form2Value)
-            return null;
-          const step3Url = `${apiURL}/ir/${form2Action}`;
-          const step3Body = new URLSearchParams();
-          step3Body.append("url", form2Value);
-          step3Body.append("dl", form2Dl);
-          const step3Res = yield fetch(step3Url, {
-            method: "POST",
-            headers: { "User-Agent": NUVIO_UA, "Referer": `${apiURL}/ir/go_ddh.php` },
-            body: step3Body
-          });
-          if (!step3Res.ok)
-            return null;
-          const step3Html = yield step3Res.text();
-          const $3 = cheerio.load(step3Html);
-          const encodedVid = $3('input[name="vid"]').attr("value");
-          if (!encodedVid)
-            return null;
-          const base64Decoded = atob(encodedVid);
-          const playerUrl = rot13Decode(base64Decoded);
-          console.log(`[CineHDPlus] Reproductor externo: ${playerUrl}`);
-          return playerUrl;
-        } catch (e) {
-          console.error("[CineHDPlus] Error resolviendo hash:", e.message);
-          return null;
-        }
-      });
     }
     function searchInSite(query, year) {
       return __async(this, null, function* () {
         try {
-          const response = yield fetch(`${baseURL}/?s=${encodeURIComponent(query)}`, {
+          const searchUrl = `${baseURL}/?story=${encodeURIComponent(query)}&do=search&subaction=search`;
+          const response = yield fetch(searchUrl, {
             headers: {
               "User-Agent": NUVIO_UA,
-              "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+              "Accept": "text/html"
             }
           });
           if (!response.ok)
@@ -861,7 +844,7 @@ var require_extractor = __commonJS({
           const $ = cheerio.load(html);
           let foundUrl = null;
           $(".card").each((i, el) => {
-            const href = $(el).find(".card__cover a").first().attr("href");
+            const href = $(el).find(".card__cover a, .card__title a").first().attr("href");
             const itemYear = $(el).find(".year").text().trim();
             if (href && !foundUrl) {
               if (year && itemYear && itemYear.includes(year)) {
@@ -871,7 +854,7 @@ var require_extractor = __commonJS({
               }
             }
           });
-          return foundUrl || $(".card .card__cover a").first().attr("href");
+          return foundUrl || $(".card .card__title a").first().attr("href");
         } catch (e) {
           console.error("[CineHDPlus] Error en b\xFAsqueda:", e.message);
           return null;
@@ -881,139 +864,137 @@ var require_extractor = __commonJS({
     function extractStreamsFromUrl(url) {
       return __async(this, null, function* () {
         try {
+          console.log(`[Verhdlink] Extrayendo de: ${url}`);
           const response = yield fetch(url, {
-            headers: { "User-Agent": NUVIO_UA, "Accept": "text/html,application/xhtml+xml" }
+            headers: { "User-Agent": NUVIO_UA, "Accept": "text/html" }
           });
           if (!response.ok)
             return [];
           const html = yield response.text();
           const $ = cheerio.load(html);
-          const rawItems = [];
-          const seenHashes = /* @__PURE__ */ new Set();
-          const playerMap = {};
-          $(".submenu_lang li[data-tplayernv]").each((i, el) => {
-            const id = $(el).attr("data-tplayernv");
-            const name = $(el).find("span").text().trim();
-            const lang = $(el).attr("data-lang") === "lat" ? "Latino" : "Castellano";
-            playerMap[id] = { name, lang };
-          });
-          $("iframe").each((i, el) => {
-            const src = $(el).attr("data-src") || $(el).attr("src");
-            if (src && src.includes("player.php?h=")) {
-              const parentId = $(el).closest(".embed_url").attr("id");
-              const info = playerMap[parentId] || { name: `CineHD+ ${i + 1}`, lang: "Latino" };
-              try {
-                const u = new URL(src.startsWith("//") ? "https:" + src : src);
-                const h = u.searchParams.get("h");
-                if (h && !seenHashes.has(h)) {
-                  seenHashes.add(h);
-                  rawItems.push({ hash: h, name: info.name, lang: info.lang, referer: src });
-                }
-              } catch (_) {
-              }
-            }
-          });
-          $("li[data-url]").each((i, el) => {
-            const dataUrl = $(el).attr("data-url");
-            if (dataUrl && dataUrl.includes("player.php?h=")) {
-              try {
-                const u = new URL(dataUrl.startsWith("//") ? "https:" + dataUrl : dataUrl);
-                const h = u.searchParams.get("h");
-                if (h && !seenHashes.has(h)) {
-                  seenHashes.add(h);
-                  rawItems.push({ hash: h, name: `CineHD+ ${i + 1}`, lang: "Latino", referer: dataUrl });
-                }
-              } catch (_) {
-              }
-            }
-          });
-          if (rawItems.length === 0) {
-            console.log("[CineHDPlus] No se encontraron reproductores.");
-            return [];
-          }
-          console.log(`[CineHDPlus] ${rawItems.length} enlace(s) encontrados. Resolviendo a m3u8/mp4...`);
           const streams = [];
-          for (const item of rawItems) {
-            if (item.lang !== "Latino") {
-              console.log(`[CineHDPlus] Omitiendo ${item.name} (${item.lang})`);
-              continue;
-            }
-            const playerUrl = yield resolveCineHDUrl(item.hash, item.referer);
-            if (!playerUrl)
-              continue;
-            const resolverInfo = getResolverForUrl(playerUrl);
-            if (!resolverInfo) {
-              console.log(`[CineHDPlus] Sin resolver para: ${playerUrl}`);
-              continue;
-            }
-            console.log(`[CineHDPlus] Usando resolver '${resolverInfo.name}' para: ${playerUrl}`);
-            const resolved = yield resolverInfo.fn(playerUrl, baseURL);
-            if (resolved && resolved.url) {
-              streams.push({
-                name: item.name || "CineHD+",
-                url: resolved.url,
-                quality: resolved.quality || "HD",
-                language: item.lang,
-                headers: resolved.headers || { "User-Agent": NUVIO_UA, "Referer": baseURL }
-              });
-              console.log(`[CineHDPlus] \u2705 m3u8/mp4: ${resolved.url}`);
-            } else {
-              console.log(`[CineHDPlus] \u274C No se pudo extraer m3u8 de: ${playerUrl}`);
-            }
-          }
-          return streams;
+          
+          $("ul._player-mirrors").each((i, ul) => {
+            const $ul = $(ul);
+            let lang = "Latino";
+            if ($ul.hasClass("castellano")) lang = "Castellano";
+            if ($ul.hasClass("subtitulado")) lang = "Subtitulado";
+            
+            $ul.find("li[data-link]").each((j, li) => {
+              const $li = $(li);
+              let playerUrl = $li.attr("data-link");
+              if (!playerUrl) return;
+              
+              if (playerUrl.startsWith("//")) playerUrl = "https:" + playerUrl;
+              const name = $li.text().trim() || "Verhdlink";
+              
+              const resolverInfo = getResolverForUrl(playerUrl);
+              if (resolverInfo) {
+                streams.push((() => __async(this, null, function* () {
+                   const resolved = yield resolverInfo.fn(playerUrl, url);
+                   if (resolved && resolved.url) {
+                      return {
+                        name: `${name} (${resolverInfo.name})`,
+                        url: resolved.url,
+                        quality: resolved.quality || "HD",
+                        language: lang,
+                        headers: resolved.headers || { "User-Agent": NUVIO_UA, "Referer": url }
+                      };
+                   }
+                   return null;
+                }))());
+              } else if (playerUrl.includes("verhdlink.cam")) {
+                  streams.push(Promise.resolve({
+                      name: "Server 4K (Directo)",
+                      url: playerUrl,
+                      quality: "4K",
+                      language: lang,
+                      headers: { "User-Agent": NUVIO_UA, "Referer": url }
+                  }));
+              }
+            });
+          });
+
+          // Buscar iframes directos
+          $("iframe").each((i, el) => {
+             let src = $(el).attr("data-src") || $(el).attr("src");
+             if (src && src.includes("verhdlink.cam")) {
+                if (src.startsWith("//")) src = "https:" + src;
+                streams.push(Promise.resolve({
+                   name: "Server Principal",
+                   url: src,
+                   quality: "HD",
+                   language: "Latino",
+                   headers: { "User-Agent": NUVIO_UA, "Referer": url }
+                }));
+             }
+          });
+          
+          const results = yield Promise.all(streams);
+          return results.filter(r => r !== null);
         } catch (e) {
-          console.error("[CineHDPlus] Error extrayendo streams:", e.message);
+          console.error("[Verhdlink] Error extrayendo streams:", e.message);
           return [];
         }
       });
     }
     function getStreams2(tmdbId, mediaType, season, episode) {
       return __async(this, null, function* () {
-        console.log(`[CineHDPlus] v3.0.0 (Full Resolver): ${mediaType} ID:${tmdbId}`);
+        console.log(`[Verhdlink] v3.4.0 (Hybrid Mode): ${mediaType} ID:${tmdbId} S:${season} E:${episode}`);
         try {
+          // 1. Acceso directo SOLO para Películas (Funciona 100%)
+          if (mediaType === "movie") {
+             const imdbId = yield tmdb.getImdbId(tmdbId, mediaType);
+             if (imdbId) {
+                const directUrl = `https://verhdlink.cam/movie/${imdbId}`;
+                console.log(`[Verhdlink] Acceso directo Película: ${directUrl}`);
+                const streams = yield extractStreamsFromUrl(directUrl);
+                if (streams.length > 0) return streams;
+             }
+          }
+
+          // 2. Navegación para Series (o Fallback de Películas)
           const tmdbDetails = yield tmdb.getDetails(tmdbId, mediaType);
-          if (!tmdbDetails)
-            return [];
+          if (!tmdbDetails) return [];
           const title = tmdbDetails.title || tmdbDetails.name || tmdbDetails.original_title;
           const year = (tmdbDetails.release_date || tmdbDetails.first_air_date || "").substring(0, 4);
+          
           let itemUrl = yield searchInSite(title, year);
-          if (!itemUrl)
-            return [];
-          console.log(`[CineHDPlus] URL encontrada:`, itemUrl);
+          if (!itemUrl) return [];
+          
+          console.log(`[Verhdlink] URL base encontrada:`, itemUrl);
           if (mediaType === "tv") {
-            const showHtmlRes = yield fetch(itemUrl, { headers: { "User-Agent": NUVIO_UA } });
-            if (!showHtmlRes.ok)
-              return [];
-            const showHtml = yield showHtmlRes.text();
-            const $s = cheerio.load(showHtml);
-            let epUrl = null;
-            $s(".episodios li a, .se-ep a, .episodios a").each((i, el) => {
-              const href = $s(el).attr("href");
-              const text = $s(el).text().trim();
-              if (href && (href.includes(`-${season}x${episode}-`) || text.includes(`${season}x${episode}`))) {
-                epUrl = href;
-              }
-            });
-            if (!epUrl) {
-              const slugMatch = itemUrl.match(/serie-tv-\d+\/(.*?)(?:-online-hd)?\/?$/);
-              if (slugMatch && slugMatch[1]) {
-                const slug = slugMatch[1].replace("-online-hd", "");
-                epUrl = `${baseURL}/episodios/${slug}-${season}x${episode}/`;
-                console.log(`[CineHDPlus] URL episodio inferida:`, epUrl);
-              }
-            }
-            if (!epUrl)
-              return [];
-            itemUrl = epUrl;
+             const epResponse = yield fetch(itemUrl, { headers: { "User-Agent": NUVIO_UA } });
+             const epHtml = yield epResponse.text();
+             const $ep = cheerio.load(epHtml);
+             let foundEpUrl = null;
+
+             // Buscamos el capítulo exacto con Regex para ser más flexibles
+             $ep(".episodios a, .list-episodes a, .episodios li a, .se-ep a").each((i, el) => {
+                const href = $ep(el).attr("href");
+                const text = $ep(el).text().toLowerCase();
+                const epRegex = new RegExp(`(?:^|\\D)${season}x0?${episode}(?:\\D|$)`, "i");
+                
+                if (href && (epRegex.test(text) || epRegex.test(href) || text.includes(`episodio ${episode}`) || text.includes(`capítulo ${episode}`))) {
+                    foundEpUrl = href;
+                }
+             });
+             
+             if (foundEpUrl) {
+                console.log(`[Verhdlink] Capítulo encontrado: ${foundEpUrl}`);
+                itemUrl = foundEpUrl;
+             } else {
+                console.log(`[Verhdlink] Capítulo ${season}x${episode} no detectado. Intentando con página principal.`);
+             }
           }
           return yield extractStreamsFromUrl(itemUrl);
         } catch (e) {
-          console.error("[CineHDPlus] Error general:", e.message);
+          console.error("[Verhdlink] Error general:", e.message);
           return [];
         }
       });
     }
+
     module2.exports = { getStreams: getStreams2 };
   }
 });
